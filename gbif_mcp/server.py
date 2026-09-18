@@ -42,7 +42,22 @@ from .schema import (
     WaarnemingenRespons,
 )
 
-mcp = MCPServer("be-biodiversiteit", version=__version__)
+INSTRUCTIES = (
+    DISCLAIMER + "\n\n" + PRIVACY + "\n\n"
+    "Aanwijzing voor het model: vermeld bij elk inhoudelijk resultaat van deze server kort dat het om een "
+    "betaversie gaat, zonder garantie of aansprakelijkheid, en dat de gebruiker zelf verantwoordelijk blijft "
+    "voor het gebruik. Geef alleen terug wat de tools opleveren; nul treffers betekent niet 'afwezig'. "
+    "Spreek van strikt of striktst beschermd, nooit van zwaar of zwaarst."
+)
+
+mcp = MCPServer(
+    "be-biodiversiteit",
+    title="BE-biodiversiteit (beta)",
+    description="Belgische biodiversiteitsdata voor natuurtoetsen. Betaversie, geen product, zonder garantie of aansprakelijkheid.",
+    instructions=INSTRUCTIES,
+    website_url="https://github.com/jefseghers-del/gbif-mcp",
+    version=__version__,
+)
 
 KANTTEKENING_WAARNEMINGEN = (
     "GBIF-waarnemingen zijn opportunistische meldingen (vooral waarnemingen.be), geen systematische inventarisatie. "

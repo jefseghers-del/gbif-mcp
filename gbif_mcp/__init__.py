@@ -1,13 +1,18 @@
 """gbif-mcp: MCP-connector voor Belgische biodiversiteitsdata (GBIF + INBO Vlaams Biodiversiteitsportaal)."""
 
-__version__ = "0.7.2"
+__version__ = "0.7.3"
 
 # Eén bron voor de disclaimer en de privacyverklaring; README, handleiding, manifest, rapport en
 # tool-antwoorden nemen deze teksten over. Wijzig ze hier, niet op de afzonderlijke plaatsen.
-DISCLAIMER_KORT = "Betaversie — zonder enige garantie; de gebruiker is zelf verantwoordelijk voor het gebruik van de resultaten."
+DISCLAIMER_KORT = (
+    "Betaversie, geen product — zonder enige garantie en zonder aansprakelijkheid; de gebruiker is zelf "
+    "verantwoordelijk voor het gebruik van de resultaten."
+)
 
 DISCLAIMER = (
-    "Betaversie — geen garantie. Deze software en de rapporten die ze maakt, worden aangeboden zoals ze zijn, "
+    "Betaversie — geen product, geen garantie, geen aansprakelijkheid. Deze software is een experimenteel "
+    "hulpmiddel in ontwikkeling, geen commercieel product of dienst. De software en de rapporten die ze maakt, "
+    "worden kosteloos aangeboden zoals ze zijn, "
     "zonder enige uitdrukkelijke of stilzwijgende garantie, onder meer over juistheid, volledigheid, actualiteit "
     "of geschiktheid voor een bepaald doel. De resultaten zijn een geautomatiseerde bronnenscan van publieke "
     "databanken; ze vervangen geen terreininventarisatie, deskundige beoordeling of juridisch advies. De gebruiker "

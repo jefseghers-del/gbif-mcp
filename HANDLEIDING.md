@@ -3,7 +3,9 @@
 Voor wie de connector gewoon wil gebruiken. Geen programmeerkennis nodig.
 
 > [!WARNING]
-> **Betaversie — geen garantie.** Deze software en de rapporten die ze maakt, worden aangeboden zoals ze zijn,
+> **Betaversie — geen product, geen garantie, geen aansprakelijkheid.** Deze software is een experimenteel
+> hulpmiddel in ontwikkeling, geen commercieel product of dienst. De software en de rapporten die ze maakt, worden
+> kosteloos aangeboden zoals ze zijn,
 > zonder enige uitdrukkelijke of stilzwijgende garantie, onder meer over juistheid, volledigheid, actualiteit of
 > geschiktheid voor een bepaald doel. De resultaten zijn een geautomatiseerde bronnenscan van publieke databanken;
 > ze vervangen geen terreininventarisatie, deskundige beoordeling of juridisch advies. **De gebruiker is zelf

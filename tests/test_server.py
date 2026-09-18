@@ -111,3 +111,26 @@ def test_soort_status_met_gemockte_bronnen(monkeypatch: pytest.MonkeyPatch):
     assert r["samenvatting"]["soortenbesluit"] == "cat. 3"
     assert any(v["lijst_code"] == "soortenbesluit" and v["categorie"] == "cat. 3" for v in r["vermeldingen"])
     assert r["exoot"] is False
+
+
+def test_disclaimer_zit_in_de_serverinstructies():
+    """De disclaimer geldt voor de hele server, niet alleen voor het rapport."""
+    from gbif_mcp import DISCLAIMER
+    from gbif_mcp.server import mcp as server_mcp
+
+    instr = server_mcp.instructions
+    assert DISCLAIMER in instr
+    for kern in ("Betaversie", "geen product", "geen garantie", "geen aansprakelijkheid", "zelf volledig verantwoordelijk"):
+        assert kern in instr
+
+
+def test_disclaimer_in_manifest():
+    import json
+    from pathlib import Path
+
+    from gbif_mcp import DISCLAIMER
+
+    m = json.loads((Path(__file__).parent.parent / "mcpb-src" / "manifest.json").read_text())
+    assert m["description"].startswith("Betaversie, geen product")
+    assert m["long_description"].startswith(DISCLAIMER)
+    assert "gmail" not in json.dumps(m)

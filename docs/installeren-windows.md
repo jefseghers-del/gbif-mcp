@@ -1,6 +1,7 @@
 # Installeren op Windows
 
-> **Betaversie, zonder garantie.** De gebruiker is zelf verantwoordelijk voor het gebruik van de resultaten.
+> **Betaversie, geen product, zonder garantie of aansprakelijkheid.** De gebruiker is zelf verantwoordelijk voor
+> het gebruik van de resultaten.
 > Zie de disclaimer in de [README](../README.md#disclaimer-en-privacy).
 
 Twee wegen. De extensiebundel is de eenvoudigste; de git-route is bedoeld voor wie de code wil
