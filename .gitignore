@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+*.egg-info/
+mcpb-src/wheels/
+mcpb-src/server/venv/
+mcpb-src/server/.wheel_ok
+voorbeeld/rapport.json
+*.log
+.DS_Store
