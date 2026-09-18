@@ -324,16 +324,22 @@ Elke GBIF-dataset heeft één licentie: CC0 1.0 (vrij), CC BY 4.0 (naamsvermeldi
 (alleen niet-commercieel). Onder de Belgische datasets vallen onder meer iNaturalist, Xeno-canto en de
 exotendatasets van waarnemingen.be onder CC BY-NC.
 
-**Standaard neemt de connector alleen CC0 en CC BY mee.** De filter werkt aan de bron (GBIF-parameter
-`license`), zodat aantallen, soortenlijsten, kaarten en records onderling kloppen. Records zonder
-bruikbare licentie vallen daardoor ook weg. Elk antwoord vermeldt de gebruikte keuze
-(`licentiefilter`), de verdeling van alle records per licentie (`licenties`) en hoeveel records zijn
-weggelaten (`uitgesloten_niet_commercieel`). Het rapport toont de licentiekeuze op het titelblad en
-de licentie per dataset in de bronverantwoording.
+**Standaard neemt de connector alle licenties mee**, ook CC BY-NC: de antwoorden en rapporten zijn
+bedoeld als intern werkdocument. Een rapport met gegevens onder CC BY-NC zegt dat op het titelblad en
+vermeldt hoeveel records het betreft.
 
-Met `ook_niet_commercieel=True` komen ook de CC BY-NC-datasets mee. Doe dat alleen als het beoogde
-gebruik niet-commercieel is; een rapport dat tegen betaling voor een cliënt wordt opgemaakt, is dat
-vermoedelijk niet. Of een concreet gebruik commercieel is, blijft een beoordeling van de gebruiker.
+**Wordt een resultaat gedeeld of gepubliceerd**, zet dan `ook_niet_commercieel=False` (of vraag in
+Claude "alleen vrij bruikbare data"). De filter werkt dan aan de bron (GBIF-parameter `license`),
+zodat aantallen, soortenlijsten, kaarten en records onderling kloppen; records zonder bruikbare
+licentie vallen dan ook weg. Of een concreet gebruik commercieel is, blijft een beoordeling van de
+gebruiker.
+
+Elk antwoord vermeldt de gebruikte keuze (`licentiefilter`), de verdeling van alle records per
+licentie (`licenties`) en, bij uitsluiting, hoeveel records zijn weggelaten
+(`uitgesloten_niet_commercieel`). Het rapport toont de licentie per dataset in de bronverantwoording.
+
+De voorbeeldrapporten in `voorbeeld/` zijn gemaakt met `ook_niet_commercieel=False`, omdat ze in deze
+repository gepubliceerd worden.
 
 Voor datasets onder CC BY is naamsvermelding vereist: neem de datasettabel uit het rapport over
 wanneer u de gegevens hergebruikt.

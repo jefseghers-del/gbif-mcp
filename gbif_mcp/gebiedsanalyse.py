@@ -169,8 +169,15 @@ async def analyseer(
     uitgesloten = sum(n for lic, n in licenties.items() if filter_actief and lic not in toegelaten)
     if uitgesloten:
         waarschuwingen.append(
-            f"{uitgesloten} records onder een niet-commerciële of onbekende licentie zijn weggelaten "
-            "(standaardinstelling). Zet ook_niet_commercieel=True om ze mee te nemen, als het gebruik dat toelaat."
+            f"{uitgesloten} records onder een niet-commerciële of onbekende licentie zijn weggelaten, op vraag "
+            "van de gebruiker (alleen CC0 en CC BY)."
+        )
+    nc_meegenomen = 0 if filter_actief else licenties.get("CC_BY_NC_4_0", 0)
+    if nc_meegenomen:
+        waarschuwingen.append(
+            f"{nc_meegenomen} van de {totaal} records vallen onder CC BY-NC 4.0 (alleen niet-commercieel gebruik). "
+            "Bestemd als intern werkdocument; wie het resultaat deelt of publiceert, sluit deze datasets uit met "
+            "ook_niet_commercieel=False."
         )
 
     # Lijsten parallel laden; een lijst die faalt wordt gemeld, niet verzwegen.

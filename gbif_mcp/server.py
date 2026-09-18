@@ -237,7 +237,7 @@ async def waarnemingen(
     max_resultaten: int = 50,
     offset: int = 0,
     dataset_key: str | None = None,
-    ook_niet_commercieel: bool = False,
+    ook_niet_commercieel: bool = True,
 ) -> WaarnemingenRespons:
     """Waarnemingen van één soort in een gebied en periode (GBIF, België), met datum, locatie, dataset en URL.
 
@@ -261,8 +261,9 @@ async def waarnemingen(
         max_resultaten: aantal individuele waarnemingen dat wordt teruggegeven (max 300 per oproep).
         offset: startpositie voor paginering (bv. 300 voor de tweede pagina).
         dataset_key: beperk tot één GBIF-brondataset (UUID uit `per_dataset` of uit het veld `datasets`).
-        ook_niet_commercieel: ook datasets onder CC BY-NC meenemen (standaard uit). Zet dit alleen aan
-            als het beoogde gebruik niet-commercieel is; een betaald advies is dat vermoedelijk niet.
+        ook_niet_commercieel: ook datasets onder CC BY-NC (alleen niet-commercieel gebruik) meenemen.
+            Standaard aan: de uitvoer is bedoeld als intern werkdocument. Zet op False wanneer het
+            resultaat gedeeld of gepubliceerd wordt; dan komen alleen datasets onder CC0 en CC BY mee.
     """
     gbif.zet_licentiefilter(ook_niet_commercieel)
     s = await _resolve(soort)
@@ -316,7 +317,7 @@ async def soorten_in_gebied(
     max_soorten: int = 200,
     offset: int = 0,
     tijdsbudget_s: float = 40.0,
-    ook_niet_commercieel: bool = False,
+    ook_niet_commercieel: bool = True,
 ) -> SoortenInGebiedRespons:
     """Welke soorten zijn in een gebied waargenomen, gekoppeld aan hun beschermings- en Rode-Lijststatus.
 
@@ -350,8 +351,9 @@ async def soorten_in_gebied(
         per_dataset_per_soort: uitsplitsing van de waarnemingen per brondataset, per soort.
         formaat: 'json' (objecten in `soorten`) of 'tabel' (markdown-tabel in `tabel`, ±4x compacter; aanbevolen bij >50 soorten).
         max_soorten / offset: paginering; `totaal_soorten_met_status` zegt hoeveel er in totaal zijn.
-        ook_niet_commercieel: ook datasets onder CC BY-NC meenemen (standaard uit). Zet dit alleen aan
-            als het beoogde gebruik niet-commercieel is; een betaald advies is dat vermoedelijk niet.
+        ook_niet_commercieel: ook datasets onder CC BY-NC (alleen niet-commercieel gebruik) meenemen.
+            Standaard aan: de uitvoer is bedoeld als intern werkdocument. Zet op False wanneer het
+            resultaat gedeeld of gepubliceerd wordt; dan komen alleen datasets onder CC0 en CC BY mee.
     """
     gbif.zet_licentiefilter(ook_niet_commercieel)
     gebied = await bepaal_gebied(adres=adres, lat=lat, lon=lon, straal_m=straal_m, wkt=wkt, gemeente=gemeente)
@@ -410,7 +412,7 @@ async def exporteer_bevraging(
     alleen_bedreigd: bool = False,
     met_records: bool = False,
     tijdsbudget_s: float = 60.0,
-    ook_niet_commercieel: bool = False,
+    ook_niet_commercieel: bool = True,
 ) -> dict:
     """Schrijf een volledige gebiedsbevraging weg als CSV of JSON (alle soorten, optioneel alle records), met metadata.
 
@@ -426,8 +428,9 @@ async def exporteer_bevraging(
     Args:
         pad: doelbestand (.csv of .json), absoluut of relatief aan de werkmap van de server.
         met_records: ook alle individuele GBIF-records van de geselecteerde soorten wegschrijven.
-        ook_niet_commercieel: ook datasets onder CC BY-NC meenemen (standaard uit). Zet dit alleen aan
-            als het beoogde gebruik niet-commercieel is; een betaald advies is dat vermoedelijk niet.
+        ook_niet_commercieel: ook datasets onder CC BY-NC (alleen niet-commercieel gebruik) meenemen.
+            Standaard aan: de uitvoer is bedoeld als intern werkdocument. Zet op False wanneer het
+            resultaat gedeeld of gepubliceerd wordt; dan komen alleen datasets onder CC0 en CC BY mee.
     """
     gbif.zet_licentiefilter(ook_niet_commercieel)
     import csv
@@ -503,7 +506,7 @@ async def telling_in_gebied(
     jaar_tot: int | None = None,
     filter: str | None = "beschermd,rodelijst,invasief",
     soorten_per_dataset: bool = False,
-    ook_niet_commercieel: bool = False,
+    ook_niet_commercieel: bool = True,
 ) -> TellingRespons:
     """Hoeveel beschermde, Rode-Lijst- en invasieve soorten zijn in een gebied gemeld — alleen aantallen, snel.
 
@@ -520,8 +523,9 @@ async def telling_in_gebied(
     Args:
         filter: lijst-/groepscodes (zie `bronnen`); standaard 'beschermd,rodelijst,invasief'.
         soorten_per_dataset: vul ook `aantal_soorten_met_status` per dataset in (trager, zie hierboven).
-        ook_niet_commercieel: ook datasets onder CC BY-NC meenemen (standaard uit). Zet dit alleen aan
-            als het beoogde gebruik niet-commercieel is; een betaald advies is dat vermoedelijk niet.
+        ook_niet_commercieel: ook datasets onder CC BY-NC (alleen niet-commercieel gebruik) meenemen.
+            Standaard aan: de uitvoer is bedoeld als intern werkdocument. Zet op False wanneer het
+            resultaat gedeeld of gepubliceerd wordt; dan komen alleen datasets onder CC0 en CC BY mee.
     """
     gbif.zet_licentiefilter(ook_niet_commercieel)
     gebied = await bepaal_gebied(adres=adres, lat=lat, lon=lon, straal_m=straal_m, wkt=wkt, gemeente=gemeente)
@@ -724,7 +728,7 @@ async def datarapport_natuur(
     bwk_kaart: bool = True,
     detail_soorten: int = 3,
     bewaar_kaarten: bool = True,
-    ook_niet_commercieel: bool = False,
+    ook_niet_commercieel: bool = True,
 ) -> dict:
     """Maak in één stap het vaste DATARAPPORT NATUUR als PDF voor een projectlocatie.
 
@@ -756,8 +760,9 @@ async def datarapport_natuur(
         bwk_kaart: tweede kaart met de Biologische Waarderingskaart opnemen.
         detail_soorten: van hoeveel striktst beschermde soorten de individuele records worden getoond.
         bewaar_kaarten: de kaartafbeeldingen naast de PDF bewaren (handig om in een nota te gebruiken).
-        ook_niet_commercieel: ook datasets onder CC BY-NC meenemen (standaard uit). Zet dit alleen aan
-            als het beoogde gebruik niet-commercieel is; een betaald advies is dat vermoedelijk niet.
+        ook_niet_commercieel: ook datasets onder CC BY-NC (alleen niet-commercieel gebruik) meenemen.
+            Standaard aan: de uitvoer is bedoeld als intern werkdocument. Zet op False wanneer het
+            resultaat gedeeld of gepubliceerd wordt; dan komen alleen datasets onder CC0 en CC BY mee.
     """
     gbif.zet_licentiefilter(ook_niet_commercieel)
     from pathlib import Path
@@ -876,7 +881,7 @@ def prompt_datarapport_natuur(
         "Geef daarna een korte samenvatting in lopende tekst:\n"
         "- hoeveel kernsoorten er zijn, en welke daarvan strikt beschermd zijn (bijlage IV van de Habitatrichtlijn);\n"
         "- in of nabij welke beschermde gebieden de locatie ligt, met de afstand;\n"
-        "- de waarschuwingen uit de respons, letterlijk, met het aantal records dat om licentieredenen is weggelaten;\n"
+        "- de waarschuwingen uit de respons, letterlijk, inclusief die over gegevens onder CC BY-NC;\n"
         "- waar de PDF en de kaarten staan.\n\n"
         "Vermeld dat het om een betaversie gaat, zonder garantie op de resultaten, en dat de gebruiker zelf "
         "verantwoordelijk blijft voor het gebruik ervan.\n\n"

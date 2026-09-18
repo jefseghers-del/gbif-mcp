@@ -150,13 +150,12 @@ resultaten. Controleer wat u in een advies, nota of vergunningsdossier overneemt
 **Geen namen van waarnemers.** De connector verwijdert de namen van waarnemers en determinatoren bij
 ontvangst. U vindt ze dus niet in de rapporten; wie ze nodig heeft, gaat naar de bron op gbif.org.
 
-**Standaard alleen vrij bruikbare data.** Sommige databanken, zoals iNaturalist en Xeno-canto, laten
-alleen niet-commercieel gebruik toe. De connector laat die standaard weg, omdat een betaald advies
-vermoedelijk commercieel gebruik is. Het rapport vermeldt hoeveel waarnemingen zo zijn weggelaten.
-Werkt u niet-commercieel, dan kunt u ze erbij vragen:
+**Let op met delen.** Sommige databanken, zoals iNaturalist en Xeno-canto, laten alleen
+niet-commercieel gebruik toe. De connector neemt ze standaard mee, omdat de rapporten bedoeld zijn als
+intern werkdocument; het rapport vermeldt dat dan op het titelblad. Gaat een rapport naar buiten, naar
+een cliënt, een overheid of in een publicatie, vraag het dan zonder die databanken:
 
-> Maak een datarapport natuur voor Driepikkelstraat 32, 9030 Gent, en neem ook de niet-commerciële
-> datasets mee.
+> Maak een datarapport natuur voor Driepikkelstraat 32, 9030 Gent, alleen met vrij bruikbare data.
 
 **Geen waarneming betekent niet: soort afwezig.** De waarnemingen zijn meldingen van vrijwilligers
 en onderzoekers, geen systematische inventarisatie. Een terreinbezoek blijft nodig.
@@ -198,7 +197,7 @@ rapport, dan is de bevraging later na te doen.
 | "alleen de kernsoorten" | beperkt tot de strikt beschermde en bedreigde soorten |
 | "met de brondatasets" | toont per soort waar de waarnemingen vandaan komen |
 | "alleen bedreigde soorten" | beperkt de Rode-Lijstsoorten tot de bedreigde categorieën |
-| "ook niet-commerciële datasets" | neemt ook databanken als iNaturalist en Xeno-canto mee; alleen bij niet-commercieel gebruik |
+| "alleen vrij bruikbare data" | laat databanken met een niet-commerciële licentie weg; nodig wanneer het rapport gedeeld of gepubliceerd wordt |
 | "als PDF" of "als CSV" | levert een bestand op in plaats van een antwoord in het gesprek |
 | "een aparte kaart per thema" | voorkomt dat de Biologische Waarderingskaart de beschermde gebieden overdekt |
 

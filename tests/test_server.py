@@ -137,7 +137,7 @@ def test_disclaimer_in_manifest():
 
 
 def test_licentiefilter_wordt_echt_gezet(monkeypatch):
-    """ook_niet_commercieel moet de GBIF-parameter `license` weghalen; standaard staat hij erop."""
+    """Standaard alle licenties (geen `license`-parameter); met ook_niet_commercieel=False alleen CC0 en CC BY."""
     import asyncio
 
     from gbif_mcp import gbif, server
@@ -154,10 +154,11 @@ def test_licentiefilter_wordt_echt_gezet(monkeypatch):
 
     monkeypatch.setattr(gbif, "get_json", nep_get_json)
     monkeypatch.setattr(server, "_resolve", nep_resolve)
-    asyncio.run(server.waarnemingen("x", lat=51.0, lon=3.7, straal_m=100))
-    assert gezien[-1].get("license") == ["CC0_1_0", "CC_BY_4_0"]
-    r = asyncio.run(server.waarnemingen("x", lat=51.0, lon=3.7, straal_m=100, ook_niet_commercieel=True))
+    r = asyncio.run(server.waarnemingen("x", lat=51.0, lon=3.7, straal_m=100))
     assert "license" not in gezien[-1]
     assert "alle licenties" in r.licentiefilter
+    r = asyncio.run(server.waarnemingen("x", lat=51.0, lon=3.7, straal_m=100, ook_niet_commercieel=False))
+    assert gezien[-1].get("license") == ["CC0_1_0", "CC_BY_4_0"]
+    assert "uitgesloten" in r.licentiefilter
     asyncio.run(server.waarnemingen("x", lat=51.0, lon=3.7, straal_m=100))
-    assert gezien[-1].get("license") == ["CC0_1_0", "CC_BY_4_0"]  # volgende oproep weer standaard
+    assert "license" not in gezien[-1]  # volgende oproep weer standaard

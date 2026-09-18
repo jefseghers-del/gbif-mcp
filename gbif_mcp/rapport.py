@@ -198,7 +198,10 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
             ("Bevraging uitgevoerd", tijd(kern["geraadpleegd_op"])),
             ("Instrument", f"{connector} (GBIF + Vlaams Biodiversiteitsportaal)"),
             ("Datalicenties", (kern.get("licentiefilter") or "—")
-             + (f" ({_getal(kern['uitgesloten_niet_commercieel'])} records weggelaten)" if kern.get("uitgesloten_niet_commercieel") else "")),
+             + (f" ({_getal(kern['uitgesloten_niet_commercieel'])} records weggelaten)" if kern.get("uitgesloten_niet_commercieel") else "")
+             + (". <b>Bevat gegevens onder CC BY-NC (alleen niet-commercieel gebruik): intern werkdocument, niet "
+                "delen of publiceren zonder de licenties na te gaan.</b>"
+                if (kern.get("licenties") or {}).get("CC BY-NC 4.0") and not kern.get("uitgesloten_niet_commercieel") else "")),
         ]),
         Spacer(1, 8),
         _kader(f"<b>{DISCLAIMER_KORT}</b> De resultaten zijn een geautomatiseerde bronnenscan en vervangen geen "

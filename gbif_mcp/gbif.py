@@ -15,18 +15,18 @@ from .schema import DatasetInfo, Soort, Waarneming
 API = "https://api.gbif.org/v1"
 
 # Datalicenties. GBIF kent per dataset één licentie: CC0 1.0, CC BY 4.0 of CC BY-NC 4.0. Standaard
-# worden alleen CC0 en CC BY opgevraagd: CC BY-NC staat alleen niet-commercieel gebruik toe, en een
-# rapport dat tegen betaling voor een cliënt wordt gemaakt valt daar vermoedelijk niet onder. Records
-# zonder bruikbare licentie vallen daardoor ook weg. De filter werkt aan de bron (GBIF-parameter
-# `license`), zodat tellingen, facetten en records onderling consistent blijven.
+# worden alle licenties meegenomen: de rapporten zijn bedoeld als intern werkdocument. Wie een rapport
+# deelt of publiceert, kan de datasets onder CC BY-NC (alleen niet-commercieel gebruik) uitsluiten;
+# de filter werkt dan aan de bron (GBIF-parameter `license`), zodat tellingen, facetten en records
+# onderling consistent blijven. Records zonder bruikbare licentie vallen dan ook weg.
 VRIJE_LICENTIES: tuple[str, ...] = ("CC0_1_0", "CC_BY_4_0")
 LICENTIENAMEN = {"CC0_1_0": "CC0 1.0", "CC_BY_4_0": "CC BY 4.0", "CC_BY_NC_4_0": "CC BY-NC 4.0",
                  "UNSPECIFIED": "niet opgegeven", "UNSUPPORTED": "niet ondersteund"}
-_licentiefilter: ContextVar[tuple[str, ...] | None] = ContextVar("licentiefilter", default=VRIJE_LICENTIES)
+_licentiefilter: ContextVar[tuple[str, ...] | None] = ContextVar("licentiefilter", default=None)
 
 
 def zet_licentiefilter(ook_niet_commercieel: bool) -> None:
-    """Per tool-oproep: alleen vrije licenties (standaard) of alle licenties, ook CC BY-NC."""
+    """Per tool-oproep: alle licenties, ook CC BY-NC (standaard), of alleen CC0 en CC BY."""
     _licentiefilter.set(None if ook_niet_commercieel else VRIJE_LICENTIES)
 
 

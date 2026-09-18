@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 """gbif-mcp: MCP-connector voor Belgische biodiversiteitsdata (GBIF + INBO Vlaams Biodiversiteitsportaal)."""
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 # Eén bron voor de disclaimer en de privacyverklaring; README, handleiding, manifest, rapport en
 # tool-antwoorden nemen deze teksten over. Wijzig ze hier, niet op de afzonderlijke plaatsen.
