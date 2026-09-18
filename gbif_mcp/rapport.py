@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Datarapport natuur als PDF: het vaste rapportsjabloon van de connector.
 
 Bouwt uit de uitvoer van de tools (telling, kernsoorten, gebieden, kaarten, onderliggende records)
@@ -194,6 +197,8 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
             ("Periode", periode),
             ("Bevraging uitgevoerd", tijd(kern["geraadpleegd_op"])),
             ("Instrument", f"{connector} (GBIF + Vlaams Biodiversiteitsportaal)"),
+            ("Datalicenties", (kern.get("licentiefilter") or "—")
+             + (f" ({_getal(kern['uitgesloten_niet_commercieel'])} records weggelaten)" if kern.get("uitgesloten_niet_commercieel") else "")),
         ]),
         Spacer(1, 8),
         _kader(f"<b>{DISCLAIMER_KORT}</b> De resultaten zijn een geautomatiseerde bronnenscan en vervangen geen "
@@ -397,14 +402,20 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
         Spacer(1, 10),
         P("7.2 Brondatasets in het zoekgebied", "h2"),
         P(f"Alle GBIF-datasets die records leveren binnen de zoekstraal voor soorten ({straal_soorten:.0f} m), met hun "
-          "aandeel. De laatste kolom telt hoeveel van de soorten met status uit die dataset komen.", "klein"),
+          "aandeel en hun licentie. De kolom <i>soorten</i> telt hoeveel van de soorten met status uit die dataset komen. "
+          "Voor datasets onder CC BY is naamsvermelding vereist; neem deze tabel over bij hergebruik van de gegevens.", "klein"),
         Spacer(1, 3),
         tabel(
-            ["Dataset", "Records", "Soorten met status"],
-            [[(d.get("dataset") or d["dataset_key"]), _getal(d['aantal_records']), str(d.get("aantal_soorten_met_status", "—"))]
-             for d in tel["per_dataset"][:12]],
-            [300, 70, 90],
+            ["Dataset", "Licentie", "Records", "Soorten"],
+            [[(d.get("dataset") or d["dataset_key"]), d.get("licentie") or "—", _getal(d['aantal_records']),
+              str(d.get("aantal_soorten_met_status", "—"))] for d in tel["per_dataset"][:12]],
+            [270, 70, 60, 60],
         ),
+        Spacer(1, 4),
+        P("Licentiekeuze: " + (kern.get("licentiefilter") or "—") + ". "
+          + ("Verdeling van alle records in het gebied vóór die keuze: "
+             + "; ".join(f"{k}: {_getal(v)}" for k, v in (kern.get("licenties") or {}).items()) + "."
+             if kern.get("licenties") else ""), "klein"),
         Spacer(1, 10),
         P("7.3 Kaartlagen", "h2"),
         tabel(["Laag", "Kleur op de kaart", f"Vlakken binnen {int(kaart['straal_m']) if kaart else straal_gebieden} m"],

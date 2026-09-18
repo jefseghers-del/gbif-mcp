@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Korte, stabiele afkortingen per GBIF-dataset, voor de compacte dataset-notatie in tabellen en CSV.
 
 De afkortingen zijn louter een leesbare verkorting van de datasettitel. Ze zeggen niets over de

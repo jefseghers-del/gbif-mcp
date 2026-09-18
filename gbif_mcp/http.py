@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Gedeelde httpx-client: herkenbare User-Agent, time-outs, eenvoudige retry en in-memory cache."""
 from __future__ import annotations
 

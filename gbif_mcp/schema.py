@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Intern schema van de connector (Pydantic).
 
 Uitgangspunt: elk teruggegeven feit draagt een controleerbare bron-URL mee (`url`, `bron`).
@@ -90,6 +93,7 @@ class WaarnemingenRespons(BaseModel):
     per_dataset: list[dict] = Field(default_factory=list, description="Verdeling over datasets (naam, sleutel, aantal).")
     per_jaar: list[dict] = Field(default_factory=list)
     zoek_url: str = Field(description="Dezelfde zoekopdracht op gbif.org, ter controle.")
+    licentiefilter: str | None = None
     waarschuwingen: list[str] = Field(default_factory=list)
     kanttekening: str = Field(description="Verplichte lezing: beperkingen van de data.")
 
@@ -128,6 +132,9 @@ class SoortenInGebiedRespons(BaseModel):
     lijstversies: dict[str, str | None] = Field(default_factory=dict, description="Per lijstcode het tijdstip waarop de lijst bij het portaal is opgehaald.")
     per_dataset: list[dict] = Field(default_factory=list, description="Datasets in het gebied (sleutel, naam, aantal records), voor citatie.")
     gbif_parameters: dict = Field(default_factory=dict, description="De GBIF-API-parameters van de facetbevraging (reproduceerbaarheid).")
+    licentiefilter: str | None = Field(default=None, description="Welke datalicenties zijn meegenomen; standaard alleen CC0 en CC BY.")
+    licenties: dict[str, int] = Field(default_factory=dict, description="Records per licentie in het gebied, vóór de filter.")
+    uitgesloten_niet_commercieel: int = Field(default=0, description="Records onder CC BY-NC die door de filter zijn weggelaten.")
     zoek_url: str
     volledig: bool = True
     ontbrekend: list[str] = Field(default_factory=list, description="Wat binnen het tijdsbudget niet kon worden opgehaald.")
@@ -147,6 +154,9 @@ class TellingRespons(BaseModel):
     per_dataset: list[dict] = Field(default_factory=list, description="Brondatasets in het gebied: dataset_key, dataset, aantal_records, en (alleen met soorten_per_dataset=True) aantal_soorten_met_status.")
     kern: int = Field(description="Soorten met kernstatus (bijlage IV Vl., bijlage II, VRL bijlage I, Rode Lijst RE/CR/EN/VU).")
     exoten: int = Field(description="Soorten met status die tegelijk als uitheems geregistreerd zijn.")
+    licentiefilter: str | None = Field(default=None, description="Welke datalicenties zijn meegenomen; standaard alleen CC0 en CC BY.")
+    licenties: dict[str, int] = Field(default_factory=dict, description="Records per licentie in het gebied, vóór de filter.")
+    uitgesloten_niet_commercieel: int = Field(default=0, description="Records onder CC BY-NC die door de filter zijn weggelaten.")
     rodelijst_dekking: dict[str, str] = Field(default_factory=dict)
     lijstversies: dict[str, str | None] = Field(default_factory=dict)
     zoek_url: str

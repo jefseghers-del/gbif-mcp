@@ -36,6 +36,14 @@ van waarnemers (`gbif.PERSOONSVELDEN`) worden bij ontvangst verwijderd via `get_
 vóór caching. Nieuwe GBIF-oproepen doen dat ook. Geen dossieradressen of -coördinaten in tests, docs of
 voorbeelden.
 
+## Datalicenties
+
+Standaard alleen CC0 en CC BY (`gbif.VRIJE_LICENTIES`), gezet per tool-oproep via
+`gbif.zet_licentiefilter(ook_niet_commercieel)` als eerste statement na de docstring, en gelezen in
+`_occurrence_params`. Elke nieuwe tool die waarnemingen ophaalt, krijgt de parameter
+`ook_niet_commercieel: bool = False` en zet de filter; een tool die andere tools oproept, geeft de
+vlag expliciet door. `tests/test_server.py::test_licentiefilter_wordt_echt_gezet` bewaakt dat.
+
 ## Harde regels
 
 - **Anti-hallucinatie**: elke tool geeft uitsluitend terug wat de bron (GBIF, INBO-portaal,

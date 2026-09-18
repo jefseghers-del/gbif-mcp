@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Geografie: adres -> coördinaten (Digitaal Vlaanderen), cirkelbuffer -> WKT, gebiedsomschrijving."""
 from __future__ import annotations
 

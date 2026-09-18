@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Bootstrap-entry voor de MCPB-bundel van gbif-mcp (Claude Desktop).
 
 Bouwt bij de eerste start een eigen venv naast de bundel en installeert daarin de

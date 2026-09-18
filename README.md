@@ -305,7 +305,38 @@ gebieden en de Biologische Waarderingskaart, voor een locatie in de Kalmthoutse 
 naam van de waarnemer en van wie de soort determineerde; die gegevens worden bij ontvangst verwijderd, nog vóór
 ze worden bewaard, en komen niet in antwoorden, exports of rapporten terecht.
 
-Zonder licentiebestand blijven alle rechten voorbehouden; neem contact op voor hergebruik van de code.
+## Licentie
+
+Copyright © 2026 Jef Seghers. In licentie gegeven krachtens de EUPL.
+
+De code valt onder de **Openbare Licentie van de Europese Unie, versie 1.2 (EUPL-1.2)**. De officiële
+Nederlandse tekst staat in [LICENSE](LICENSE); alle taalversies hebben gelijke rechtskracht
+([overzicht bij de Europese Commissie](https://interoperable-europe.ec.europa.eu/collection/eupl/eupl-text-eupl-12)).
+U mag de code gebruiken, bestuderen, aanpassen en verspreiden. Wie een aangepaste versie verspreidt of
+online als dienst aanbiedt, doet dat onder dezelfde licentie.
+
+De licentie geldt voor de **code**, niet voor de gegevens in de antwoorden en rapporten. Die gegevens
+vallen onder de licentie van hun bron; zie *Datalicenties* hieronder.
+
+## Datalicenties
+
+Elke GBIF-dataset heeft één licentie: CC0 1.0 (vrij), CC BY 4.0 (naamsvermelding) of CC BY-NC 4.0
+(alleen niet-commercieel). Onder de Belgische datasets vallen onder meer iNaturalist, Xeno-canto en de
+exotendatasets van waarnemingen.be onder CC BY-NC.
+
+**Standaard neemt de connector alleen CC0 en CC BY mee.** De filter werkt aan de bron (GBIF-parameter
+`license`), zodat aantallen, soortenlijsten, kaarten en records onderling kloppen. Records zonder
+bruikbare licentie vallen daardoor ook weg. Elk antwoord vermeldt de gebruikte keuze
+(`licentiefilter`), de verdeling van alle records per licentie (`licenties`) en hoeveel records zijn
+weggelaten (`uitgesloten_niet_commercieel`). Het rapport toont de licentiekeuze op het titelblad en
+de licentie per dataset in de bronverantwoording.
+
+Met `ook_niet_commercieel=True` komen ook de CC BY-NC-datasets mee. Doe dat alleen als het beoogde
+gebruik niet-commercieel is; een rapport dat tegen betaling voor een cliënt wordt opgemaakt, is dat
+vermoedelijk niet. Of een concreet gebruik commercieel is, blijft een beoordeling van de gebruiker.
+
+Voor datasets onder CC BY is naamsvermelding vereist: neem de datasettabel uit het rapport over
+wanneer u de gegevens hergebruikt.
 
 ## Installatie
 

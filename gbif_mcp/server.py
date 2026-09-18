@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """MCP-server voor Belgische biodiversiteitsdata (GBIF + INBO Vlaams Biodiversiteitsportaal).
 
 Tools:
@@ -234,6 +237,7 @@ async def waarnemingen(
     max_resultaten: int = 50,
     offset: int = 0,
     dataset_key: str | None = None,
+    ook_niet_commercieel: bool = False,
 ) -> WaarnemingenRespons:
     """Waarnemingen van één soort in een gebied en periode (GBIF, België), met datum, locatie, dataset en URL.
 
@@ -257,7 +261,10 @@ async def waarnemingen(
         max_resultaten: aantal individuele waarnemingen dat wordt teruggegeven (max 300 per oproep).
         offset: startpositie voor paginering (bv. 300 voor de tweede pagina).
         dataset_key: beperk tot één GBIF-brondataset (UUID uit `per_dataset` of uit het veld `datasets`).
+        ook_niet_commercieel: ook datasets onder CC BY-NC meenemen (standaard uit). Zet dit alleen aan
+            als het beoogde gebruik niet-commercieel is; een betaald advies is dat vermoedelijk niet.
     """
+    gbif.zet_licentiefilter(ook_niet_commercieel)
     s = await _resolve(soort)
     if s is None:
         raise ValueError(f"Soort niet gevonden: '{soort}'. Probeer `zoek_soort`.")
@@ -284,7 +291,8 @@ async def waarnemingen(
         geraadpleegd_op=nu_iso(), soort=s, gebied=omschrijving, periode=periode, totaal=totaal, teruggegeven=len(lijst), offset=offset,
         records_met_broedindicatie=sum(1 for w in lijst if w.broedindicatie),
         per_verificatiestatus=_tel_verificatie(lijst), waarnemingen=lijst, per_dataset=per_dataset,
-        per_jaar=per_jaar, zoek_url=url, waarschuwingen=waarschuwingen, kanttekening=KANTTEKENING_WAARNEMINGEN + " " + KANTTEKENING_HERKOMST,
+        per_jaar=per_jaar, zoek_url=url, licentiefilter=gbif.licentiefilter_omschrijving(), waarschuwingen=waarschuwingen,
+        kanttekening=KANTTEKENING_WAARNEMINGEN + " " + KANTTEKENING_HERKOMST,
     )
 
 
@@ -308,6 +316,7 @@ async def soorten_in_gebied(
     max_soorten: int = 200,
     offset: int = 0,
     tijdsbudget_s: float = 40.0,
+    ook_niet_commercieel: bool = False,
 ) -> SoortenInGebiedRespons:
     """Welke soorten zijn in een gebied waargenomen, gekoppeld aan hun beschermings- en Rode-Lijststatus.
 
@@ -341,7 +350,10 @@ async def soorten_in_gebied(
         per_dataset_per_soort: uitsplitsing van de waarnemingen per brondataset, per soort.
         formaat: 'json' (objecten in `soorten`) of 'tabel' (markdown-tabel in `tabel`, ±4x compacter; aanbevolen bij >50 soorten).
         max_soorten / offset: paginering; `totaal_soorten_met_status` zegt hoeveel er in totaal zijn.
+        ook_niet_commercieel: ook datasets onder CC BY-NC meenemen (standaard uit). Zet dit alleen aan
+            als het beoogde gebruik niet-commercieel is; een betaald advies is dat vermoedelijk niet.
     """
+    gbif.zet_licentiefilter(ook_niet_commercieel)
     gebied = await bepaal_gebied(adres=adres, lat=lat, lon=lon, straal_m=straal_m, wkt=wkt, gemeente=gemeente)
     kern = bool(filter) and "kern" in [d.strip() for d in filter.split(",")]
     codes = ontleed_codes(filter)
@@ -375,7 +387,9 @@ async def soorten_in_gebied(
         offset=offset, soorten=[] if formaat == "tabel" else [ga.naar_uitvoer(r, detail=detail) for r in pagina],
         tabel=ga.naar_tabel(pagina, met_straal=bool(gebied.centrum), met_datasets=per_dataset_per_soort) if formaat == "tabel" else None,
         rodelijst_dekking=an.rodelijst_dekking, legende=an.legende, lijstversies=an.lijstversies,
-        per_dataset=an.per_dataset, gbif_parameters=an.gbif_parameters, zoek_url=an.zoek_url, volledig=volledig and not an.ontbrekend,
+        per_dataset=an.per_dataset, gbif_parameters=an.gbif_parameters, zoek_url=an.zoek_url,
+        licentiefilter=an.licentiefilter, licenties=an.licenties, uitgesloten_niet_commercieel=an.uitgesloten_niet_commercieel,
+        volledig=volledig and not an.ontbrekend,
         ontbrekend=an.ontbrekend, waarschuwingen=waarschuwingen,
         kanttekening=ga.KANTTEKENING_KORT + (" " + KANTTEKENING_HERKOMST if per_dataset_per_soort else ""),
     )
@@ -396,6 +410,7 @@ async def exporteer_bevraging(
     alleen_bedreigd: bool = False,
     met_records: bool = False,
     tijdsbudget_s: float = 60.0,
+    ook_niet_commercieel: bool = False,
 ) -> dict:
     """Schrijf een volledige gebiedsbevraging weg als CSV of JSON (alle soorten, optioneel alle records), met metadata.
 
@@ -411,7 +426,10 @@ async def exporteer_bevraging(
     Args:
         pad: doelbestand (.csv of .json), absoluut of relatief aan de werkmap van de server.
         met_records: ook alle individuele GBIF-records van de geselecteerde soorten wegschrijven.
+        ook_niet_commercieel: ook datasets onder CC BY-NC meenemen (standaard uit). Zet dit alleen aan
+            als het beoogde gebruik niet-commercieel is; een betaald advies is dat vermoedelijk niet.
     """
+    gbif.zet_licentiefilter(ook_niet_commercieel)
     import csv
     import json
     from pathlib import Path
@@ -436,7 +454,8 @@ async def exporteer_bevraging(
     meta = {
         "geraadpleegd_op": an.geraadpleegd_op, "gebied": gebied.omschrijving, "periode": f"{jaar_van or ''}-{jaar_tot or ''}",
         "filter": ",".join(codes), "gbif_parameters": an.gbif_parameters, "zoek_url": an.zoek_url, "lijstversies": an.lijstversies,
-        "rodelijst_dekking": an.rodelijst_dekking, "per_dataset": an.per_dataset, "legende": an.legende, "volledig": volledig and not an.ontbrekend,
+        "rodelijst_dekking": an.rodelijst_dekking, "per_dataset": an.per_dataset, "licentiefilter": an.licentiefilter,
+        "licenties": an.licenties, "uitgesloten_niet_commercieel": an.uitgesloten_niet_commercieel, "legende": an.legende, "volledig": volledig and not an.ontbrekend,
         "ontbrekend": an.ontbrekend, "waarschuwingen": an.waarschuwingen + ga.signaleer_vervaging(regels, gebied.straal_m), "connector": f"gbif-mcp {__version__}",
     }
     soorten = [ga.naar_uitvoer(r, detail=True).model_dump(mode="json") for r in regels]
@@ -484,6 +503,7 @@ async def telling_in_gebied(
     jaar_tot: int | None = None,
     filter: str | None = "beschermd,rodelijst,invasief",
     soorten_per_dataset: bool = False,
+    ook_niet_commercieel: bool = False,
 ) -> TellingRespons:
     """Hoeveel beschermde, Rode-Lijst- en invasieve soorten zijn in een gebied gemeld — alleen aantallen, snel.
 
@@ -500,15 +520,19 @@ async def telling_in_gebied(
     Args:
         filter: lijst-/groepscodes (zie `bronnen`); standaard 'beschermd,rodelijst,invasief'.
         soorten_per_dataset: vul ook `aantal_soorten_met_status` per dataset in (trager, zie hierboven).
+        ook_niet_commercieel: ook datasets onder CC BY-NC meenemen (standaard uit). Zet dit alleen aan
+            als het beoogde gebruik niet-commercieel is; een betaald advies is dat vermoedelijk niet.
     """
+    gbif.zet_licentiefilter(ook_niet_commercieel)
     gebied = await bepaal_gebied(adres=adres, lat=lat, lon=lon, straal_m=straal_m, wkt=wkt, gemeente=gemeente)
     codes = ontleed_codes(filter)
     an = await ga.analyseer(gebied, codes, jaar_van=jaar_van, jaar_tot=jaar_tot)
     per_lijst, per_cat, kern_n, exoten = ga.telling(an)
     per_dataset = [{"dataset_key": d["dataset_key"], "dataset": d.get("dataset"), "aantal_records": d["aantal"]} for d in an.per_dataset[:25]]
     await ga.vul_datasetnamen(an.per_dataset, [])
+    await ga.vul_licenties(per_dataset)
     for d, bron in zip(per_dataset, an.per_dataset):
-        d["dataset"] = bron.get("dataset")
+        d["dataset"] = d.get("dataset") or bron.get("dataset")
     if soorten_per_dataset and per_dataset:
         met_status = {r.key for r in an.regels}
         gevonden = await gbif.soortkeys_per_dataset(
@@ -526,6 +550,7 @@ async def telling_in_gebied(
         geraadpleegd_op=an.geraadpleegd_op, gebied=gebied.omschrijving, periode=periode, totaal_waarnemingen=an.totaal_waarnemingen,
         totaal_soorten=an.aantal_soorten, totaal_soorten_met_status=len(an.regels), per_lijst=per_lijst, per_categorie=per_cat,
         per_dataset=per_dataset, kern=kern_n, exoten=exoten, rodelijst_dekking=an.rodelijst_dekking,
+        licentiefilter=an.licentiefilter, licenties=an.licenties, uitgesloten_niet_commercieel=an.uitgesloten_niet_commercieel,
         lijstversies=an.lijstversies, zoek_url=an.zoek_url,
         waarschuwingen=an.waarschuwingen + [f"ontbrekend: {o}" for o in an.ontbrekend],
         kanttekening=ga.KANTTEKENING_KORT + " " + KANTTEKENING_HERKOMST,
@@ -699,6 +724,7 @@ async def datarapport_natuur(
     bwk_kaart: bool = True,
     detail_soorten: int = 3,
     bewaar_kaarten: bool = True,
+    ook_niet_commercieel: bool = False,
 ) -> dict:
     """Maak in één stap het vaste DATARAPPORT NATUUR als PDF voor een projectlocatie.
 
@@ -730,7 +756,10 @@ async def datarapport_natuur(
         bwk_kaart: tweede kaart met de Biologische Waarderingskaart opnemen.
         detail_soorten: van hoeveel striktst beschermde soorten de individuele records worden getoond.
         bewaar_kaarten: de kaartafbeeldingen naast de PDF bewaren (handig om in een nota te gebruiken).
+        ook_niet_commercieel: ook datasets onder CC BY-NC meenemen (standaard uit). Zet dit alleen aan
+            als het beoogde gebruik niet-commercieel is; een betaald advies is dat vermoedelijk niet.
     """
+    gbif.zet_licentiefilter(ook_niet_commercieel)
     from pathlib import Path
 
     from .gebieden import _naar_l72
@@ -768,9 +797,9 @@ async def datarapport_natuur(
         return k
 
     taken = [
-        telling_in_gebied(lat=lat, lon=lon, straal_m=straal_soorten_m, jaar_van=jaar_van, jaar_tot=jaar_tot, soorten_per_dataset=True),
+        telling_in_gebied(lat=lat, lon=lon, straal_m=straal_soorten_m, jaar_van=jaar_van, jaar_tot=jaar_tot, soorten_per_dataset=True, ook_niet_commercieel=ook_niet_commercieel),
         soorten_in_gebied(lat=lat, lon=lon, straal_m=straal_soorten_m, jaar_van=jaar_van, jaar_tot=jaar_tot, filter="kern",
-                          per_dataset_per_soort=True, max_soorten=150),
+                          per_dataset_per_soort=True, max_soorten=150, ook_niet_commercieel=ook_niet_commercieel),
         gebieden_rond(lat=lat, lon=lon, straal_m=straal_gebieden_m),
     ]
     if kaarten:
@@ -785,7 +814,7 @@ async def datarapport_natuur(
     for sp in kern.soorten[: max(0, detail_soorten)]:
         ds = sp.datasets[0]["dataset_key"] if sp.datasets else None
         w = await waarnemingen(str(sp.taxon_key), lat=lat, lon=lon, straal_m=straal_soorten_m, jaar_van=jaar_van,
-                               jaar_tot=jaar_tot, max_resultaten=8, dataset_key=ds)
+                               jaar_tot=jaar_tot, max_resultaten=8, dataset_key=ds, ook_niet_commercieel=ook_niet_commercieel)
         detail.append({"soort": sp.model_dump(mode="json"), "dataset_key": ds, "waarnemingen": w.model_dump(mode="json")})
 
     kern_d = kern.model_dump(mode="json")
@@ -821,6 +850,8 @@ async def datarapport_natuur(
         "volledig": kern.volledig,
         "waarschuwingen": kern_d["waarschuwingen"],
         "geraadpleegd_op": kern.geraadpleegd_op,
+        "licentiefilter": kern.licentiefilter,
+        "uitgesloten_niet_commercieel": kern.uitgesloten_niet_commercieel,
         "disclaimer": DISCLAIMER,
         "privacy": PRIVACY,
     }
@@ -845,7 +876,7 @@ def prompt_datarapport_natuur(
         "Geef daarna een korte samenvatting in lopende tekst:\n"
         "- hoeveel kernsoorten er zijn, en welke daarvan strikt beschermd zijn (bijlage IV van de Habitatrichtlijn);\n"
         "- in of nabij welke beschermde gebieden de locatie ligt, met de afstand;\n"
-        "- de waarschuwingen uit de respons, letterlijk;\n"
+        "- de waarschuwingen uit de respons, letterlijk, met het aantal records dat om licentieredenen is weggelaten;\n"
         "- waar de PDF en de kaarten staan.\n\n"
         "Vermeld dat het om een betaversie gaat, zonder garantie op de resultaten, en dat de gebruiker zelf "
         "verantwoordelijk blijft voor het gebruik ervan.\n\n"

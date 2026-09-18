@@ -134,3 +134,30 @@ def test_disclaimer_in_manifest():
     assert m["description"].startswith("Betaversie, geen product")
     assert m["long_description"].startswith(DISCLAIMER)
     assert "gmail" not in json.dumps(m)
+
+
+def test_licentiefilter_wordt_echt_gezet(monkeypatch):
+    """ook_niet_commercieel moet de GBIF-parameter `license` weghalen; standaard staat hij erop."""
+    import asyncio
+
+    from gbif_mcp import gbif, server
+
+    gezien: list[dict] = []
+
+    async def nep_get_json(url, params=None, **kw):
+        gezien.append(dict(params or {}))
+        return {"count": 0, "results": [], "facets": [], "endOfRecords": True}
+
+    async def nep_resolve(naam):
+        from gbif_mcp.schema import Soort
+        return Soort(taxon_key=1, wetenschappelijke_naam="X", url="u", nederlandse_naam="x")
+
+    monkeypatch.setattr(gbif, "get_json", nep_get_json)
+    monkeypatch.setattr(server, "_resolve", nep_resolve)
+    asyncio.run(server.waarnemingen("x", lat=51.0, lon=3.7, straal_m=100))
+    assert gezien[-1].get("license") == ["CC0_1_0", "CC_BY_4_0"]
+    r = asyncio.run(server.waarnemingen("x", lat=51.0, lon=3.7, straal_m=100, ook_niet_commercieel=True))
+    assert "license" not in gezien[-1]
+    assert "alle licenties" in r.licentiefilter
+    asyncio.run(server.waarnemingen("x", lat=51.0, lon=3.7, straal_m=100))
+    assert gezien[-1].get("license") == ["CC0_1_0", "CC_BY_4_0"]  # volgende oproep weer standaard

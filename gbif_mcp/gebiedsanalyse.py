@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Gedeelde engine voor `soorten_in_gebied` en `telling_in_gebied`.
 
 Stappen:
@@ -138,6 +141,9 @@ class Analyse:
     ontbrekend: list[str]
     exoot_keys: set[int]
     rodelijst_dekking: dict[str, str] = field(default_factory=dict)
+    licentiefilter: str = ""
+    licenties: dict[str, int] = field(default_factory=dict)
+    uitgesloten_niet_commercieel: int = 0
 
 
 async def analyseer(
@@ -151,10 +157,21 @@ async def analyseer(
     if gebied.waarschuwing:
         waarschuwingen.append(gebied.waarschuwing)
 
-    totaal, tellingen, per_dataset, params, url = await gbif.soorten_facet(
-        geometry=gebied.wkt, gadm_gid=gebied.gadm_gid, jaar_van=jaar_van, jaar_tot=jaar_tot,
-        max_soorten=5000 if codes else max_soorten_zonder_filter,
+    (totaal, tellingen, per_dataset, params, url), licenties = await asyncio.gather(
+        gbif.soorten_facet(
+            geometry=gebied.wkt, gadm_gid=gebied.gadm_gid, jaar_van=jaar_van, jaar_tot=jaar_tot,
+            max_soorten=5000 if codes else max_soorten_zonder_filter,
+        ),
+        gbif.licentieverdeling(geometry=gebied.wkt, gadm_gid=gebied.gadm_gid, jaar_van=jaar_van, jaar_tot=jaar_tot),
     )
+    filter_actief = "license" in params
+    toegelaten = set(params.get("license") or [])
+    uitgesloten = sum(n for lic, n in licenties.items() if filter_actief and lic not in toegelaten)
+    if uitgesloten:
+        waarschuwingen.append(
+            f"{uitgesloten} records onder een niet-commerciële of onbekende licentie zijn weggelaten "
+            "(standaardinstelling). Zet ook_niet_commercieel=True om ze mee te nemen, als het gebruik dat toelaat."
+        )
 
     # Lijsten parallel laden; een lijst die faalt wordt gemeld, niet verzwegen.
     async def _laad(code: str):
@@ -210,11 +227,25 @@ async def analyseer(
     for code in indexen:
         if code.startswith("rodelijst"):
             rl_dekking[code] = inbo.dekking([it for items in indexen[code].values() for it in items])
-    return Analyse(rodelijst_dekking=rl_dekking,
+    return Analyse(rodelijst_dekking=rl_dekking, licentiefilter=gbif.licentiefilter_omschrijving(),
+        licenties={gbif.licentie_kort(k): v for k, v in licenties.items()}, uitgesloten_niet_commercieel=uitgesloten,
         geraadpleegd_op=geraadpleegd, gebied=gebied, codes=codes, totaal_waarnemingen=totaal, aantal_soorten=len(tellingen),
         regels=regels, per_dataset=per_dataset, gbif_parameters=params, zoek_url=url, lijstversies=lijstversies,
         legende=legende, waarschuwingen=waarschuwingen, ontbrekend=ontbrekend, exoot_keys=exoot_keys,
     )
+
+
+async def vul_licenties(per_dataset: list[dict], max_opzoeken: int = 15) -> None:
+    """Licentie per dataset (voor naamsvermelding bij CC BY en controle op CC BY-NC); dataset_info is gecachet."""
+    async def _een(d: dict) -> None:
+        try:
+            info = await gbif.dataset_info(d["dataset_key"])
+            d["licentie"] = info.licentie
+            d.setdefault("dataset", info.titel)
+        except Exception:
+            d["licentie"] = "onbekend"
+
+    await asyncio.gather(*(_een(d) for d in per_dataset[:max_opzoeken] if "licentie" not in d))
 
 
 async def vul_datasetnamen(per_dataset: list[dict], records: list[dict[str, Any]], max_opzoeken: int = 8) -> None:

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Beschermde gebieden rond een punt of polygoon: Natura 2000, VEN/IVON, natuurbeheerplannen, HPG,
 erfgoed, BWK … via de WFS-diensten van het Departement Omgeving (Mercator) en Digitaal Vlaanderen (BWK).
 

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Client voor het Vlaams Biodiversiteitsportaal (natuurdata.inbo.be; Atlas of Living Australia-stack).
 
 Gebruikte webservices (allemaal publiek, zonder sleutel):

@@ -1,14 +1,57 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Client voor de publieke GBIF-API (api.gbif.org/v1). Geen authenticatie vereist."""
 from __future__ import annotations
 
 import asyncio
 import re
+from contextvars import ContextVar
 from typing import Any
 
 from .http import get_json
 from .schema import DatasetInfo, Soort, Waarneming
 
 API = "https://api.gbif.org/v1"
+
+# Datalicenties. GBIF kent per dataset één licentie: CC0 1.0, CC BY 4.0 of CC BY-NC 4.0. Standaard
+# worden alleen CC0 en CC BY opgevraagd: CC BY-NC staat alleen niet-commercieel gebruik toe, en een
+# rapport dat tegen betaling voor een cliënt wordt gemaakt valt daar vermoedelijk niet onder. Records
+# zonder bruikbare licentie vallen daardoor ook weg. De filter werkt aan de bron (GBIF-parameter
+# `license`), zodat tellingen, facetten en records onderling consistent blijven.
+VRIJE_LICENTIES: tuple[str, ...] = ("CC0_1_0", "CC_BY_4_0")
+LICENTIENAMEN = {"CC0_1_0": "CC0 1.0", "CC_BY_4_0": "CC BY 4.0", "CC_BY_NC_4_0": "CC BY-NC 4.0",
+                 "UNSPECIFIED": "niet opgegeven", "UNSUPPORTED": "niet ondersteund"}
+_licentiefilter: ContextVar[tuple[str, ...] | None] = ContextVar("licentiefilter", default=VRIJE_LICENTIES)
+
+
+def zet_licentiefilter(ook_niet_commercieel: bool) -> None:
+    """Per tool-oproep: alleen vrije licenties (standaard) of alle licenties, ook CC BY-NC."""
+    _licentiefilter.set(None if ook_niet_commercieel else VRIJE_LICENTIES)
+
+
+def licentiefilter_omschrijving() -> str:
+    f = _licentiefilter.get()
+    if not f:
+        return "alle licenties, ook niet-commercieel (CC BY-NC)"
+    return "alleen " + " en ".join(LICENTIENAMEN.get(x, x) for x in f) + "; niet-commerciële datasets (CC BY-NC) uitgesloten"
+
+
+def licentie_kort(url_of_code: str | None) -> str:
+    """'http://creativecommons.org/licenses/by-nc/4.0/legalcode' of 'CC_BY_NC_4_0' -> 'CC BY-NC 4.0'."""
+    if not url_of_code:
+        return "onbekend"
+    if url_of_code in LICENTIENAMEN:
+        return LICENTIENAMEN[url_of_code]
+    u = url_of_code.lower()
+    if "zero" in u or "cc0" in u:
+        return "CC0 1.0"
+    if "by-nc" in u:
+        return "CC BY-NC 4.0"
+    if "/by/" in u:
+        return "CC BY 4.0"
+    return url_of_code
+
 
 # Persoonsgegevens in GBIF-records. De connector verwerkt die niet: ze worden bij ontvangst uit elk
 # record verwijderd, nog vóór caching, en komen dus nooit in een antwoord, export of rapport terecht.
@@ -161,6 +204,9 @@ def _occurrence_params(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     p: dict[str, Any] = {"country": "BE", "hasCoordinate": "true", "occurrenceStatus": "PRESENT"}
+    licenties = _licentiefilter.get()
+    if licenties:
+        p["license"] = list(licenties)
     if dataset_key:
         p["datasetKey"] = dataset_key
     if taxon_key:
@@ -326,6 +372,15 @@ async def soortkeys_per_dataset(
     return uit
 
 
+async def licentieverdeling(*, geometry: str | None, gadm_gid: str | None, jaar_van: int | None, jaar_tot: int | None) -> dict[str, int]:
+    """Aantal records per licentie in het gebied, ZONDER licentiefilter: toont wat is uitgesloten."""
+    p = _occurrence_params(taxon_key=None, geometry=geometry, gadm_gid=gadm_gid, jaar_van=jaar_van, jaar_tot=jaar_tot)
+    p.pop("license", None)
+    p.update({"limit": 0, "facet": "license", "facetLimit": 10})
+    d = await get_json(f"{API}/occurrence/search", p, ttl=600, verwijder_velden=PERSOONSVELDEN)
+    return {c["name"]: c["count"] for f in d.get("facets", []) for c in f.get("counts", [])}
+
+
 async def checklist_keys(dataset_key: str) -> set[int]:
     """Backbone-sleutels van alle taxa in een GBIF-checklist, schijfgecachet (7 dagen)."""
     keys: set[int] = set()
@@ -378,7 +433,7 @@ async def dataset_info(key: str) -> DatasetInfo:
         titel=d.get("title", ""),
         type=d.get("type"),
         uitgever=d.get("publishingOrganizationTitle") or d.get("publishingOrganizationKey"),
-        licentie=d.get("license"),
+        licentie=licentie_kort(d.get("license")),
         doi=d.get("doi"),
         beschrijving=beschrijving,
         citatie=(d.get("citation") or {}).get("text"),

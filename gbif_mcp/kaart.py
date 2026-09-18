@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Situeringskaart: de projectlocatie met de beschermde gebieden eromheen, als PNG.
 
 Achtergrond: de GRB-basiskaart van Digitaal Vlaanderen (WMS, Lambert 72). Daarop worden de

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Dunne REST-schil rond dezelfde tools, voor een latere webinterface voor collega's.
 
 Elke tool is bereikbaar als POST /tools/<naam> met een JSON-body met de tool-parameters, en

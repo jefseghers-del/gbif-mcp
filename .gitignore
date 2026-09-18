@@ -10,3 +10,4 @@ mcpb-src/server/.wheel_ok
 voorbeeld/rapport.json
 *.log
 .DS_Store
+mcpb-src/LICENSE

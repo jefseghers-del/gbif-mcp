@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Bouw een datarapport natuur opnieuw uit een bewaarde JSON-bevraging.
 
 Het sjabloon zelf zit in de connector (gbif_mcp/rapport.py); in Claude gebruikt u gewoon de tool

@@ -1,6 +1,9 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """gbif-mcp: MCP-connector voor Belgische biodiversiteitsdata (GBIF + INBO Vlaams Biodiversiteitsportaal)."""
 
-__version__ = "0.7.3"
+__version__ = "0.8.0"
 
 # Eén bron voor de disclaimer en de privacyverklaring; README, handleiding, manifest, rapport en
 # tool-antwoorden nemen deze teksten over. Wijzig ze hier, niet op de afzonderlijke plaatsen.

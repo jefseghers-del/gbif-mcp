@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Jef Seghers
+# In licentie gegeven krachtens de EUPL
+# SPDX-License-Identifier: EUPL-1.2
 """Register van gezaghebbende lijsten op het Vlaams Biodiversiteitsportaal (INBO, natuurdata.inbo.be).
 
 Het portaal is een Atlas of Living Australia-instantie; elke lijst heeft een `dataResourceUid`
