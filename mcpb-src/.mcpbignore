@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+bouw.sh
+.mcpbignore
+server/venv/
+server/.wheel_ok
+server/.bootstrap.lock
+server/.installatie_bezig

@@ -11,3 +11,5 @@ voorbeeld/rapport.json
 *.log
 .DS_Store
 mcpb-src/LICENSE
+mcpb-src/server/.bootstrap.lock
+mcpb-src/server/.installatie_bezig

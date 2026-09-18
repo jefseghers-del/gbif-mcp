@@ -87,16 +87,36 @@ gebouwd, werkt ongewijzigd op Windows: hem opnieuw bouwen is dus zelden nodig.
 
 ## Bekende aandachtspunten op Windows
 
-- **Eerste start.** Claude Desktop start de extensie op Windows meermaals tegelijk. Sinds versie
-  0.6.1 installeert precies één proces de omgeving en wachten de andere (lockbestand
-  `server/.bootstrap.lock`). Duurt de installatie langer dan Claude Desktop wil wachten, dan
-  verschijnt "Request timed out"; de installatie loopt gewoon door en de volgende start werkt.
 - **Startcommando.** Op Windows start de bundel met `python`, niet met `python3`: de installatie
   van python.org levert geen `python3.exe`, alleen die uit de Microsoft Store.
+- **Python uit de Microsoft Store.** Die Python leidt schrijfacties onder `AppData` om naar een
+  eigen map (`...\Packages\PythonSoftwareFoundation.Python.3.1x_...\LocalCache`). Een bestand
+  lezen op het gevraagde pad lukt dan wel, een proces starten niet; het log toont "Actual
+  environment location may have moved". Sinds versie 0.9.1 volgt de bootstrap die omleiding (via
+  `os.path.realpath`, zoals `venv` zelf) en meldt hij in het log dat Store-Python in gebruik is.
+  De versie van python.org blijft de betrouwbaarste keuze.
+- **Gelijktijdige starts.** Claude Desktop start de extensie vaak meermaals tegelijk, en sluit
+  soms een instantie al na een fractie van een seconde weer af, ook als die net de installatie
+  was begonnen. Precies één proces installeert de omgeving (lockbestand
+  `server\.bootstrap.lock`); de andere wachten. Sinds versie 0.9.1 bewaart het slot de
+  proces-ID's van de installeerder en van zijn pip-processen: zijn die allemaal gestopt, dan
+  neemt een wachtend proces het slot meteen over (vroeger pas na 15 minuten, met "Request timed
+  out" tot gevolg). Een slot ouder dan 15 minuten vervalt hoe dan ook.
+- **Afgebroken installatie.** pip installeert niet atomair: een hard afgebroken pip kan een
+  pakket half achterlaten, dat een volgende pip dan als "al geïnstalleerd" overslaat. Zolang de
+  installatie loopt, staat er daarom een marker `server\.installatie_bezig`; vindt een volgende
+  start die nog, dan bouwt hij de omgeving opnieuw op ("Een vorige installatie werd afgebroken"
+  in het log).
+- **Duurt de eerste installatie** langer dan Claude Desktop wil wachten, dan verschijnt "Request
+  timed out"; de installatie loopt gewoon door en de volgende start werkt.
 - **Geen echte `exec`.** De bootstrap start de server daarom als kindproces en geeft de exitcode
   door; op macOS en Linux vervangt hij het proces met `os.execve`.
 - **Schijfcache** staat standaard in `%USERPROFILE%\.cache\gbif-mcp`. Met de omgevingsvariabele
   `GBIF_MCP_CACHE` zet u die elders.
+- **Een oude installatie opruimen.** Lukt de eerste start blijvend niet: sluit Claude Desktop
+  volledig af, verwijder de extensie, installeer ze opnieuw en wacht drie minuten. Gebruikte u
+  Store-Python, verwijder dan ook de mappen `be-biodiversiteit` onder
+  `%LOCALAPPDATA%\Packages\PythonSoftwareFoundation.Python.3.1x_...\LocalCache\`.
 - **PowerShell-uitvoeringsbeleid**: lukt `Activate.ps1` niet, gebruik dan
   `.\.venv\Scripts\activate.bat` in een gewone opdrachtprompt, of eenmalig
   `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`.
