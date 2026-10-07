@@ -24,7 +24,7 @@ import asyncio
 
 from mcp.server.mcpserver import MCPServer
 
-from . import DISCLAIMER, PRIVACY, __version__, gbif, gebieden, gebiedsanalyse as ga, inbo, kaart as kaartmodule
+from . import DISCLAIMER, PRIVACY, __version__, dekking, gbif, gebieden, gebiedsanalyse as ga, inbo, kaart as kaartmodule
 from .datasets import compact as datasets_compact
 from .geo import afstand_m, bepaal_gebied, geocodeer
 from .http import nu_iso
@@ -249,7 +249,13 @@ async def waarnemingen(
     uitsplitsing per soort van `soorten_in_gebied` (veld `datasets`) naar de onderliggende records.
     `per_verificatiestatus` telt het veld identificationVerificationStatus over de teruggegeven records;
     waarnemingen.be en Florabank vullen dat, eBird, iNaturalist en Pl@ntNet niet ('(leeg)').
-    Lees `kanttekening` en neem ze over in het advies.
+    Er wordt niet gefilterd op basisOfRecord (ook MACHINE_OBSERVATION, MATERIAL_SAMPLE …), samplingProtocol,
+    behavior of lifeStage; enkel aanwezigheidsmeldingen (occurrenceStatus PRESENT). Per record staan
+    `basis`, `protocol` (samplingProtocol), `gedrag`, `levensstadium`, `opmerkingen` en
+    `dynamische_eigenschappen` letterlijk, plus een afgeleide `methode` (batdetector, uitwerpselen, zicht …;
+    'onbekend' als de bron niets zegt). `per_methode` en `per_basis` tellen ze.
+    Lees `kanttekening` en neem ze over in het advies: ze bevat ook de dekkingswaarschuwing voor
+    waarnemingen.be, waarvan het grootste deel niet op GBIF staat (bv. de meeste batdetectorwaarnemingen).
 
     Args:
         soort: Nederlandse of wetenschappelijke naam, of GBIF-taxonKey.
@@ -279,7 +285,7 @@ async def waarnemingen(
             waarschuwingen.append(gebied.waarschuwing)
     else:
         geometry, gadm, omschrijving = None, None, "België (landsfilter)"
-    totaal, lijst, per_dataset, per_jaar, url = await gbif.zoek_waarnemingen(
+    totaal, lijst, per_dataset, per_jaar, url, per_basis = await gbif.zoek_waarnemingen(
         taxon_key=s.taxon_key, geometry=geometry, gadm_gid=gadm, jaar_van=jaar_van, jaar_tot=jaar_tot, limit=max_resultaten, offset=offset,
         dataset_key=dataset_key,
     )
@@ -288,12 +294,17 @@ async def waarnemingen(
         if centrum and w.lat is not None and w.lon is not None:
             w.afstand_m = round(afstand_m(centrum[0], centrum[1], w.lat, w.lon))
     periode = f"{jaar_van or '…'}–{jaar_tot or '…'}" if (jaar_van or jaar_tot) else None
+    dekking_tekst, dekking_bron = await dekking.kanttekening()
+    per_methode: dict[str, int] = {}
+    for w in lijst:
+        per_methode[w.methode] = per_methode.get(w.methode, 0) + 1
     return WaarnemingenRespons(
         geraadpleegd_op=nu_iso(), soort=s, gebied=omschrijving, periode=periode, totaal=totaal, teruggegeven=len(lijst), offset=offset,
         records_met_broedindicatie=sum(1 for w in lijst if w.broedindicatie),
-        per_verificatiestatus=_tel_verificatie(lijst), waarnemingen=lijst, per_dataset=per_dataset,
+        per_verificatiestatus=_tel_verificatie(lijst), per_methode=dict(sorted(per_methode.items(), key=lambda kv: -kv[1])),
+        per_basis=per_basis, dekking_bron=dekking_bron, waarnemingen=lijst, per_dataset=per_dataset,
         per_jaar=per_jaar, zoek_url=url, licentiefilter=gbif.licentiefilter_omschrijving(), waarschuwingen=waarschuwingen,
-        kanttekening=KANTTEKENING_WAARNEMINGEN + " " + KANTTEKENING_HERKOMST,
+        kanttekening=KANTTEKENING_WAARNEMINGEN + " " + KANTTEKENING_HERKOMST + " " + dekking_tekst,
     )
 
 
@@ -344,6 +355,11 @@ async def soorten_in_gebied(
     `volledig=False` betekent dat records voor sommige soorten niet binnen `tijdsbudget_s` konden worden
     opgehaald; zie `ontbrekend`. Lees `waarschuwingen` en `kanttekening`.
 
+    `dekking`: per soortgroep die als onvolledig gedekt op GBIF staat (configuratie data/dekking.json,
+    nu o.a. vleermuizen) het aantal records per brondataset in het gebied, met een waarschuwing als meer
+    dan 80 % uit één INBO-dataset komt of er geen enkel record is. Het grootste deel van
+    waarnemingen.be (o.a. de meeste batdetectorwaarnemingen) staat niet op GBIF; zie `kanttekening`.
+
     Args:
         adres: adres of plaatsnaam (Digitaal Vlaanderen). straal_m: standaard 500 m.
         wkt: POLYGON in WGS84 (lon lat), tegenwijzerzin. gemeente: Vlaamse gemeente (elders: arrondissement).
@@ -383,6 +399,9 @@ async def soorten_in_gebied(
                     d["dataset"] = titels.get(d["dataset_key"])
     waarschuwingen = an.waarschuwingen + ga.signaleer_vervaging(pagina, gebied.straal_m)
     periode = f"{jaar_van or '…'}–{jaar_tot or '…'}" if (jaar_van or jaar_tot) else None
+    (dekking_tekst, dekking_bron), dekking_groepen = await asyncio.gather(
+        dekking.kanttekening(), dekking.per_groep(geometry=gebied.wkt, gadm_gid=gebied.gadm_gid, jaar_van=jaar_van, jaar_tot=jaar_tot))
+    waarschuwingen += [g["waarschuwing"] for g in dekking_groepen if g.get("waarschuwing")]
     return SoortenInGebiedRespons(
         geraadpleegd_op=an.geraadpleegd_op, gebied=gebied.omschrijving, periode=periode, filter=",".join(codes) or None,
         totaal_waarnemingen=an.totaal_waarnemingen, aantal_soorten_in_gebied=an.aantal_soorten, totaal_soorten_met_status=len(an.regels),
@@ -392,8 +411,8 @@ async def soorten_in_gebied(
         per_dataset=an.per_dataset, gbif_parameters=an.gbif_parameters, zoek_url=an.zoek_url,
         licentiefilter=an.licentiefilter, licenties=an.licenties, uitgesloten_niet_commercieel=an.uitgesloten_niet_commercieel,
         volledig=volledig and not an.ontbrekend,
-        ontbrekend=an.ontbrekend, waarschuwingen=waarschuwingen,
-        kanttekening=ga.KANTTEKENING_KORT + (" " + KANTTEKENING_HERKOMST if per_dataset_per_soort else ""),
+        ontbrekend=an.ontbrekend, waarschuwingen=waarschuwingen, dekking=dekking_groepen, dekking_bron=dekking_bron,
+        kanttekening=ga.KANTTEKENING_KORT + (" " + KANTTEKENING_HERKOMST if per_dataset_per_soort else "") + " " + dekking_tekst,
     )
 
 

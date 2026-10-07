@@ -29,6 +29,16 @@ nooit als losse code in tekst: "geen habitat". Kaart en rapporttabel delen `bwk.
 nummers overeenkomen. WFS-features ophalen gebeurt met BBOX en tegelsplitsing, niet met STARTINDEX (zie
 `docs/gebieden-lagen.md`). Testfixture: `tests/fixtures/bwk_bourgoyen_r210.json` (publieke locatie).
 
+## Methode en dekking
+
+`gbif_mcp/methoden.py` leidt `methode` af uit `samplingProtocol`, dan `basisOfRecord` (tabel
+`data/methoden.json`); nooit uit vrije tekst, nooit gokken ('onbekend'). Geen filter op basisOfRecord,
+samplingProtocol, behavior of lifeStage. `gbif_mcp/dekking.py` bouwt de dekkingskanttekening uit de
+GBIF-beschrijving van dataset 280674cb (citaat + versie), niet uit het geheugen, en de indicator per
+soortgroep uit `data/dekking.json`. Tests: `tests/conftest.py` mockt `gbif_mcp.dekking.get_json` standaard.
+Waarnemingen.be als tweede bron (spoor B) is niet geïmplementeerd zolang de gebruiksvoorwaarden van de
+API niet zijn nagegaan; geen scraping.
+
 ## Kaart
 
 `gbif_mcp/kaart.py` tekent de situeringskaart met Pillow: GRB-basiskaart als WMS-ondergrond

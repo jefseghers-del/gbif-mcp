@@ -73,6 +73,11 @@ class Waarneming(BaseModel):
     gedrag: str | None = Field(default=None, description="behavior")
     geslacht: str | None = Field(default=None, description="sex")
     opmerkingen: str | None = Field(default=None, description="occurrenceRemarks (ingekort)")
+    protocol: str | None = Field(default=None, description="samplingProtocol, letterlijk (bv. 'bat detector', 'feces', 'seen').")
+    dynamische_eigenschappen: str | None = Field(default=None, description="dynamicProperties, letterlijk (ingekort).")
+    methode: str = Field(default="onbekend", description="Leesbare methode afgeleid uit samplingProtocol, dan basisOfRecord (tabel "
+                         "data/methoden.json); 'niet vertaald: …' als het protocol niet in de tabel staat; 'onbekend' zonder gegevens. Nooit gegokt.")
+    methode_bron: str | None = Field(default=None, description="Veld(en) waaruit `methode` komt.")
     verificatiestatus: str | None = Field(default=None, description="identificationVerificationStatus, letterlijk zoals de bron hem levert (bv. 'approved on expert judgement', 'unverified', 'validated'); leeg bij datasets die het veld niet vullen.")
     broedindicatie: bool = Field(default=False, description="Heuristiek op de velden hierboven (broed-, nest-, territorium-, juveniel-, paring-termen).")
     afstand_m: float | None = Field(default=None, description="Afstand tot het middelpunt (alleen bij cirkelgebied).")
@@ -89,6 +94,10 @@ class WaarnemingenRespons(BaseModel):
     offset: int = 0
     records_met_broedindicatie: int | None = None
     per_verificatiestatus: dict[str, int] = Field(default_factory=dict, description="Telling van identificationVerificationStatus over de teruggegeven records; '(leeg)' = veld niet gevuld door de bron.")
+    per_methode: dict[str, int] = Field(default_factory=dict, description="Telling van `methode` over de teruggegeven records.")
+    per_basis: list[dict] = Field(default_factory=list, description="Alle records die aan de filters voldoen per basisOfRecord (GBIF-facet); "
+                                  "er wordt niet op basisOfRecord gefilterd.")
+    dekking_bron: dict = Field(default_factory=dict, description="Dataset waarop de dekkingswaarschuwing in `kanttekening` steunt (titel, versie, DOI).")
     waarnemingen: list[Waarneming]
     per_dataset: list[dict] = Field(default_factory=list, description="Verdeling over datasets (naam, sleutel, aantal).")
     per_jaar: list[dict] = Field(default_factory=list)
@@ -139,6 +148,9 @@ class SoortenInGebiedRespons(BaseModel):
     volledig: bool = True
     ontbrekend: list[str] = Field(default_factory=list, description="Wat binnen het tijdsbudget niet kon worden opgehaald.")
     waarschuwingen: list[str] = Field(default_factory=list)
+    dekking: list[dict] = Field(default_factory=list, description="Per soortgroep die als onvolledig gedekt op GBIF staat "
+                                "(data/dekking.json): records in het gebied per brondataset, met waarschuwing.")
+    dekking_bron: dict = Field(default_factory=dict, description="Dataset waarop de dekkingswaarschuwing in `kanttekening` steunt.")
     kanttekening: str
 
 

@@ -1,0 +1,12 @@
+{
+ "key": "280674cb-42f8-4959-b6aa-eee663157965",
+ "title": "INBO collaborator Occurrences of vertebrates recorded in waarnemingen.be in Flanders, Belgium",
+ "version": "1.7",
+ "pubDate": "2025-11-14T00:00:00.000+00:00",
+ "modified": "2026-03-12T08:22:17.773+00:00",
+ "doi": "10.15468/xa5sqf",
+ "license": "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
+ "type": "OCCURRENCE",
+ "description": "This dataset comprises vertebrate occurrence records sourced from the Waarnemingen database, with a focus on data tagged to the Research Institute for Nature and Forest (INBO). The majority of observations stem from INBO-led fieldwork, systematically recorded using waarnemingen.be and the ObsMapp mobile application. In addition, the dataset includes a selection of ad hoc observations contributed by INBO users within the platform.\n\nAll records were extracted from the central Waarnemingen database, managed by Natuurpunt and part of the observation.org network. Each entry includes species identification, observation date, location details, observer information, and method of recording. This curated dataset provides valuable insights into vertebrate animal biodiversity across Flanders and supports research, monitoring, and conservation initiatives.\n\nINBO tagged occurrences of non-native plants and animals are already published in https://www.gbif.org/dataset/9a0b66df-7535-4f28-9f4e-5bc11b8b096c and https://www.gbif.org/dataset/7f5e4129-0717-428e-876a-464fbd5d9a47 and are kept out of this dataset.\n\nTo allow anyone to use this dataset, we have released the data to the public domain under a Creative Commons Zero waiver. We would appreciate however, if you read and follow these norms for data use and provide a link to the original dataset whenever possible.",
+ "publishingOrganizationKey": "1cd669d0-80ea-11de-a9d0-f1765f95f18b"
+}

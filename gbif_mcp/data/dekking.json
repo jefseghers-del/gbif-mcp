@@ -1,0 +1,13 @@
+{
+ "toelichting": "Soortgroepen waarvan bekend is dat GBIF ze voor Vlaanderen onvolledig dekt, omdat ze vooral via waarnemingen.be gemeld worden en het grootste deel daarvan niet op GBIF staat. Aan te vullen zonder codewijziging; een eigen bestand kan via de omgevingsvariabele GBIF_MCP_DEKKING. Een groep krijgt een waarschuwing wanneer meer dan `drempel` van haar records in het gebied uit één van de `inbo_datasets` komt, of wanneer er geen enkel record is.",
+ "drempel": 0.8,
+ "inbo_datasets": ["280674cb-42f8-4959-b6aa-eee663157965"],
+ "groepen": [
+  {
+   "naam": "vleermuizen",
+   "taxon_key": 734,
+   "wetenschappelijke_naam": "Chiroptera",
+   "reden": "Vaststelling 7 oktober 2026: in één Vlaamse gemeente 20 GBIF-records tegenover ongeveer 840 vleermuiswaarnemingen op waarnemingen.be, vooral batdetector en uitwerpselen."
+  }
+ ]
+}

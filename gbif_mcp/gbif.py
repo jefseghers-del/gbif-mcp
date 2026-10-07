@@ -10,6 +10,7 @@ from contextvars import ContextVar
 from typing import Any
 
 from .http import get_json
+from .methoden import methode as _methode
 from .schema import DatasetInfo, Soort, Waarneming
 
 API = "https://api.gbif.org/v1"
@@ -187,6 +188,10 @@ def _waarneming(o: dict[str, Any]) -> Waarneming:
         gedrag=o.get("behavior"),
         geslacht=o.get("sex"),
         opmerkingen=(o.get("occurrenceRemarks") or "")[:200] or None,
+        protocol=o.get("samplingProtocol"),
+        dynamische_eigenschappen=(str(o.get("dynamicProperties") or ""))[:300] or None,
+        methode=_methode(o)[0],
+        methode_bron=_methode(o)[1],
         verificatiestatus=o.get("identificationVerificationStatus"),
         broedindicatie=broedindicatie(o),
         url=f"https://www.gbif.org/occurrence/{o['key']}",
@@ -247,25 +252,30 @@ async def zoek_waarnemingen(
     limit: int,
     offset: int = 0,
     dataset_key: str | None = None,
-) -> tuple[int, list[Waarneming], list[dict], list[dict], str]:
+) -> tuple[int, list[Waarneming], list[dict], list[dict], str, list[dict]]:
+    """(totaal, records, per_dataset, per_jaar, zoek_url, per_basisOfRecord). Er wordt niet gefilterd op
+    basisOfRecord, samplingProtocol, behavior of lifeStage; enkel occurrenceStatus=PRESENT."""
     p = _occurrence_params(taxon_key=taxon_key, geometry=geometry, gadm_gid=gadm_gid, jaar_van=jaar_van, jaar_tot=jaar_tot, dataset_key=dataset_key)
-    p.update({"limit": min(limit, 300), "offset": offset, "facet": ["datasetKey", "year"], "facetLimit": 25})
+    p.update({"limit": min(limit, 300), "offset": offset, "facet": ["datasetKey", "year", "basisOfRecord"], "facetLimit": 25})
     d = await get_json(f"{API}/occurrence/search", p, ttl=600, verwijder_velden=PERSOONSVELDEN)
     per_dataset: list[dict] = []
     per_jaar: list[dict] = []
+    per_basis: list[dict] = []
     for f in d.get("facets", []):
         if f["field"] == "DATASET_KEY":
             for c in f["counts"]:
                 per_dataset.append({"dataset_key": c["name"], "aantal": c["count"]})
         elif f["field"] == "YEAR":
             per_jaar = sorted(({"jaar": int(c["name"]), "aantal": c["count"]} for c in f["counts"]), key=lambda x: x["jaar"])
+        elif f["field"] == "BASIS_OF_RECORD":
+            per_basis.extend({"basis": c["name"], "aantal": c["count"]} for c in f["counts"])
     # datasetnamen invullen uit de records zelf (spaart API-calls)
     namen = {o.get("datasetKey"): o.get("datasetName") for o in d.get("results", []) if o.get("datasetName")}
     for pd_ in per_dataset:
         if pd_["dataset_key"] in namen:
             pd_["dataset"] = namen[pd_["dataset_key"]]
     waarnemingen = [_waarneming(o) for o in d.get("results", [])]
-    return d.get("count", 0), waarnemingen, per_dataset, per_jaar, gbif_zoek_url(p)
+    return d.get("count", 0), waarnemingen, per_dataset, per_jaar, gbif_zoek_url(p), per_basis
 
 
 async def soorten_facet(
@@ -301,7 +311,7 @@ async def soorten_facet(
 RECORD_VELDEN = (
     "key", "speciesKey", "taxonKey", "year", "eventDate", "decimalLatitude", "decimalLongitude", "coordinateUncertaintyInMeters",
     "datasetKey", "datasetName", "basisOfRecord", "lifeStage", "reproductiveCondition", "behavior", "sex", "occurrenceRemarks",
-    "identificationVerificationStatus",
+    "identificationVerificationStatus", "samplingProtocol",
 )
 
 

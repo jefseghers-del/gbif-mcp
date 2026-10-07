@@ -456,7 +456,9 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
         P(
             "Per soort de individuele records uit de dataset die er de meeste levert. De verificatiestatus is "
             "letterlijk overgenomen uit GBIF (veld <i>identificationVerificationStatus</i>); een leeg veld betekent "
-            "dat de bron die informatie niet meelevert, niet dat het record onbetrouwbaar is."
+            "dat de bron die informatie niet meelevert, niet dat het record onbetrouwbaar is. De methode is afgeleid uit "
+            "de GBIF-velden samplingProtocol en basisOfRecord (batdetector, uitwerpselen, zicht …); <i>onbekend</i> "
+            "betekent dat de bron het niet vermeldt."
         ),
     ]
 
@@ -465,15 +467,16 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
         ds_naam = next((d.get("dataset") for d in (s["datasets"] or []) if d["dataset_key"] == blok["dataset_key"]), blok["dataset_key"])
         rijen = [[
             x["datum"] or "", x["plaats"] or x["gemeente"] or "", f"{x['onzekerheid_m']:.0f}" if x["onzekerheid_m"] else "",
-            x["verificatiestatus"] or "—", x.get("basis") or "",
+            x["verificatiestatus"] or "—", x.get("methode") or x.get("basis") or "onbekend",
         ] for x in w["waarnemingen"]]
         verhaal.append(KeepTogether([
             Spacer(1, 6),
             P(f"{s['nederlandse_naam']} ({s['wetenschappelijke_naam']}) — {s['samenvatting'].get('hrl_iv_vl') or list(s['samenvatting'].values())[0]}", "h2"),
             P(f"Bron: {ds_naam}. Records getoond: {len(rijen)} van {w['totaal']} in deze dataset. "
-              f"Verificatiestatus: {', '.join(f'{k} ({v})' for k, v in w['per_verificatiestatus'].items())}.", "klein"),
+              f"Verificatiestatus: {', '.join(f'{k} ({v})' for k, v in w['per_verificatiestatus'].items())}."
+              + (f" Methode: {', '.join(f'{k} ({v})' for k, v in w['per_methode'].items())}." if w.get("per_methode") else ""), "klein"),
             Spacer(1, 2),
-            tabel(["Datum", "Plaats", "onz. (m)", "Verificatie", "Soort record"], rijen, [52, 168, 38, 110, 92]),
+            tabel(["Datum", "Plaats", "onz. (m)", "Verificatie", "Methode"], rijen, [52, 158, 38, 100, 112]),
         ]))
 
     verhaal.append(PageBreak())
@@ -518,6 +521,23 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
           + ("Verdeling van alle records in het gebied vóór die keuze: "
              + "; ".join(f"{k}: {_getal(v)}" for k, v in (kern.get("licenties") or {}).items()) + "."
              if kern.get("licenties") else ""), "klein"),
+    ]
+    if kern.get("dekking"):
+        verhaal += [
+            Spacer(1, 10),
+            P("7.2bis Dekking per soortgroep", "h2"),
+            P("Soortgroepen die als onvolledig gedekt op GBIF gemarkeerd zijn: ze worden vooral via waarnemingen.be gemeld, "
+              "waarvan het grootste deel niet op GBIF staat. Aandeel van de GBIF-records in het zoekgebied voor soorten "
+              f"({straal_soorten:.0f} m) per brondataset.", "klein"),
+            Spacer(1, 3),
+            tabel(["Groep", "Records", "Grootste brondatasets (aandeel)", "Waarschuwing"],
+                  [[f"{g['groep']}<br/><i>{g.get('wetenschappelijke_naam') or ''}</i>",
+                    str(g.get("totaal", "—")) if g.get("status") == "ok" else "niet geraadpleegd",
+                    "<br/>".join(f"{_kort({'dataset_key': d['dataset_key']})} {d['aandeel']:.0%}" for d in (g.get("per_dataset") or [])[:3]) or "—",
+                    g.get("waarschuwing") or "—"] for g in kern["dekking"]],
+                  [70, 45, 150, 195]),
+        ]
+    verhaal += [
         Spacer(1, 10),
         P("7.3 Kaartlagen", "h2"),
         tabel(["Laag", "Kleur op de kaart", f"Vlakken binnen {int(kaart['straal_m']) if kaart else straal_gebieden} m"],

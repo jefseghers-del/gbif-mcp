@@ -1,0 +1,37 @@
+{
+ "toelichting": "Vertaling van de letterlijke GBIF-velden naar een leesbare methode. Alleen eenduidige waarden; een samplingProtocol dat hier niet staat, blijft letterlijk staan ('niet vertaald: ...'), zonder gegevens wordt het 'onbekend'. Waarden vastgesteld in de GBIF-facetten samplingProtocol en basisOfRecord voor België op 7 oktober 2026. Aan te vullen zonder codewijziging.",
+ "protocol_exact": {
+  "bat detector": "batdetector",
+  "feces": "uitwerpselen",
+  "seen": "zicht",
+  "seen and heard": "zicht en gehoord",
+  "on sound recorder": "geluidsopname",
+  "audiomoth recording": "geluidsopname (AudioMoth)",
+  "captured": "gevangen",
+  "camera trap": "cameraval",
+  "thermal camera": "warmtecamera",
+  "edna barcoding": "eDNA",
+  "nest (box)": "nest(kast)",
+  "telemetrie": "telemetrie",
+  "feeding traces": "vraatsporen",
+  "other traces": "andere sporen",
+  "collected (in collection)": "verzameld (collectie)",
+  "visual observation with searchlight": "zicht (met zoeklamp)",
+  "unknown": null
+ },
+ "protocol_bevat": [
+  ["bat detector", "batdetector"],
+  ["batcorder", "batdetector"],
+  ["bat winter roosts counts", "telling winterverblijfplaats"],
+  ["bat maternity roosts", "telling kraamverblijfplaats"]
+ ],
+ "basis": {
+  "MACHINE_OBSERVATION": "machinale registratie (basisOfRecord MACHINE_OBSERVATION; toestel niet gespecificeerd)",
+  "PRESERVED_SPECIMEN": "collectie-exemplaar",
+  "MATERIAL_SAMPLE": "materiaalstaal",
+  "MATERIAL_CITATION": "materiaal vermeld in literatuur",
+  "FOSSIL_SPECIMEN": "fossiel",
+  "LIVING_SPECIMEN": "levend exemplaar in collectie"
+ },
+ "dood_in_behavior": ["dead", "dood", "roadkill", "verkeersslachtoffer"]
+}

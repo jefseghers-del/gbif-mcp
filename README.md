@@ -27,7 +27,7 @@ Zie **Harde regels** hieronder.
 |------|------|---------------------------|-------------|
 | `zoek_soort` | Naam (wetenschappelijk of Nederlands) → GBIF-taxonsleutel(s) | `naam`, `max_resultaten` | lijst `Soort` |
 | `soort_status` | Beschermings-, Rode-Lijst- en exotenstatus van één soort | `soort` (naam of taxonKey) | `SoortStatus`: `vermeldingen` per lijst, `samenvatting` per lijstcode, `exoot`, `koppeling_twijfel` |
-| `waarnemingen` | GBIF-waarnemingen van één soort in een gebied/periode | `soort`, gebied (zie onder), `jaar_van`, `jaar_tot`, `max_resultaten`, `offset`, `dataset_key` | `WaarnemingenRespons`: totaal, steekproef, verdeling per dataset/jaar, `per_verificatiestatus`, `zoek_url` |
+| `waarnemingen` | GBIF-waarnemingen van één soort in een gebied/periode | `soort`, gebied (zie onder), `jaar_van`, `jaar_tot`, `max_resultaten`, `offset`, `dataset_key` | `WaarnemingenRespons`: totaal, steekproef, verdeling per dataset/jaar, `per_verificatiestatus`, `per_methode`, `per_basis`, `zoek_url` |
 | `soorten_in_gebied` | Alle soorten waargenomen in een gebied, gekoppeld aan hun status | gebied, `filter`, `alleen_bedreigd`, `per_dataset_per_soort`, `formaat`, `max_soorten`, `offset`, `tijdsbudget_s` | `SoortenInGebiedRespons`: compacte soortenlijst (of `tabel`), legende, dekking, reproduceerbaarheid |
 | `telling_in_gebied` | Alleen aantallen: hoeveel beschermde/Rode-Lijst-/invasieve soorten in een gebied | gebied, `filter`, `soorten_per_dataset` | `TellingRespons`: aantal per lijst/categorie, `per_dataset`, `kern`, `exoten` |
 | `gebieden_rond` | Beschermde gebieden en gebiedsstatuten rond een punt/polygoon | `adres`/`lat`+`lon`/`wkt`, `straal_m`, `lagen` | `GebiedenRespons`: per laag alle gebieden/eenheden binnen de straal met afstand (overlap eerst); BWK-samenvatting |
@@ -108,6 +108,34 @@ GBIF-oproepen, in de praktijk ±2 s; daarom standaard uit).
 Elke waarneming draagt ook `verificatiestatus` (het GBIF-veld `identificationVerificationStatus`,
 letterlijk overgenomen), en `waarnemingen` telt die in `per_verificatiestatus`. Waarnemingen.be en
 Florabank vullen dat veld, eBird, iNaturalist en Pl@ntNet niet; dan staat er `(leeg)`.
+
+## Methode per waarneming en dekking van waarnemingen.be
+
+Er wordt niet gefilterd op `basisOfRecord` (ook `MACHINE_OBSERVATION`, `MATERIAL_SAMPLE`,
+`MATERIAL_CITATION`, `OCCURRENCE` komen mee), noch op `samplingProtocol`, `behavior` of `lifeStage`;
+enkel `occurrenceStatus=PRESENT` (en `hasCoordinate=true`, nodig voor de ruimtelijke bevraging).
+Elke waarneming draagt de letterlijke velden `basis`, `protocol` (samplingProtocol), `gedrag`,
+`levensstadium`, `opmerkingen` en `dynamische_eigenschappen`, plus een afgeleide `methode`
+(`batdetector`, `uitwerpselen`, `zicht`, `geluidsopname`, `telling winterverblijfplaats` …) met
+`methode_bron`. De vertaaltabel staat in `gbif_mcp/data/methoden.json` en is aan te vullen zonder
+codewijziging. Een protocol dat er niet in staat, blijft letterlijk (`niet vertaald: '…'`); zonder
+gegevens wordt het `onbekend`. Vrije tekst (occurrenceRemarks) wordt niet geïnterpreteerd. In de
+INBO-dataset van waarnemingen.be staan batdetectorwaarnemingen als `HUMAN_OBSERVATION` met
+`samplingProtocol = "bat detector"`; de methode zit dus in het protocol, niet in `basisOfRecord`.
+
+**Dekking.** Van waarnemingen.be staat op GBIF vooral de dataset met de aan INBO gekoppelde
+waarnemingen (`280674cb-…`); het grootste deel van de waarnemingen van het publiek, waaronder de
+meeste batdetectorwaarnemingen, staat niet op GBIF. `waarnemingen`, `soorten_in_gebied` en het
+datarapport krijgen daarom een kanttekening die de beschrijving van die dataset letterlijk citeert,
+met titel, versie, publicatiedatum en DOI zoals GBIF ze nu levert (`dekking_bron`). `soorten_in_gebied`
+en het datarapport geven bovendien `dekking`: per soortgroep die als onvolledig gedekt gemarkeerd
+staat (`gbif_mcp/data/dekking.json`, of een eigen bestand via `GBIF_MCP_DEKKING`; nu vleermuizen) het
+aandeel van de records per brondataset, met een waarschuwing als meer dan 80 % uit één INBO-dataset
+komt of als er geen enkel record is.
+
+Wie handmatig vergelijkt op waarnemingen.be: de soortenlijst per telgebied verbergt standaard
+waarnemingen met "niet-telbare activiteiten en methodes" (batdetector, uitwerpselen); de lijst met
+waarnemingen per soort toont ze wel.
 
 ## `kaart_gebieden`: situeringskaart
 
