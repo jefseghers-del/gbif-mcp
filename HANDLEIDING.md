@@ -65,8 +65,10 @@ een verantwoording van de bronnen en de beperkingen.
 
 > Maak een datarapport natuur voor Kerkstraat 12, 9070 Destelbergen.
 
-Claude maakt dan de PDF en de kaarten, en zet ze in uw map Documenten. Wilt u andere afstanden of
-een andere periode, zeg het erbij:
+Claude maakt dan de PDF en de kaarten, en zet ze in uw map Documenten. Wilt u het rapport in Word
+verder bewerken, vraag dan "als Word" (of "als PDF en Word"): u krijgt hetzelfde rapport als
+.docx, in Calibri 10 pt met regelafstand exact 15 pt. Wilt u andere afstanden of een andere
+periode, zeg het erbij:
 
 > Maak een datarapport natuur voor Kerkstraat 12, 9070 Destelbergen, soorten binnen 750 m,
 > gebieden binnen 1,5 km, waarnemingen vanaf 2018, en bewaar het op mijn bureaublad.
@@ -199,6 +201,7 @@ rapport, dan is de bevraging later na te doen.
 | "alleen bedreigde soorten" | beperkt de Rode-Lijstsoorten tot de bedreigde categorieën |
 | "alleen vrij bruikbare data" | laat databanken met een niet-commerciële licentie weg; nodig wanneer het rapport gedeeld of gepubliceerd wordt |
 | "als PDF" of "als CSV" | levert een bestand op in plaats van een antwoord in het gesprek |
+| "als Word" | het datarapport natuur als .docx (met "als PDF en Word" krijgt u beide) |
 | "een aparte kaart per thema" | voorkomt dat de Biologische Waarderingskaart de beschermde gebieden overdekt |
 
 ---

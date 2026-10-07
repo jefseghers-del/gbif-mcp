@@ -31,7 +31,7 @@ Zie **Harde regels** hieronder.
 | `soorten_in_gebied` | Alle soorten waargenomen in een gebied, gekoppeld aan hun status | gebied, `filter`, `alleen_bedreigd`, `per_dataset_per_soort`, `formaat`, `max_soorten`, `offset`, `tijdsbudget_s` | `SoortenInGebiedRespons`: compacte soortenlijst (of `tabel`), legende, dekking, reproduceerbaarheid |
 | `telling_in_gebied` | Alleen aantallen: hoeveel beschermde/Rode-Lijst-/invasieve soorten in een gebied | gebied, `filter`, `soorten_per_dataset` | `TellingRespons`: aantal per lijst/categorie, `per_dataset`, `kern`, `exoten` |
 | `gebieden_rond` | Beschermde gebieden en gebiedsstatuten rond een punt/polygoon | `adres`/`lat`+`lon`/`wkt`, `straal_m`, `lagen` | `GebiedenRespons`: per laag alle gebieden/eenheden binnen de straal met afstand (overlap eerst); BWK-samenvatting |
-| `datarapport_natuur` | Het vaste rapportsjabloon: telling, kernsoorten, gebieden, kaarten en onderliggende records in één PDF | adres of lat/lon, `pad`, `straal_soorten_m`, `straal_gebieden_m`, `jaar_van`, `kaarten`, `bwk_kaart` | pad, aantal pagina's, kaarten, samenvatting, waarschuwingen |
+| `datarapport_natuur` | Het vaste rapportsjabloon: telling, kernsoorten, gebieden, kaarten en onderliggende records in één PDF (of Word) | adres of lat/lon, `pad`, `straal_soorten_m`, `straal_gebieden_m`, `jaar_van`, `kaarten`, `bwk_kaart`, `formaat` (`pdf`, `docx`, `beide`) | pad, `pad_docx`, aantal pagina's, kaarten, samenvatting, waarschuwingen |
 | `kaart_gebieden` | Situeringskaart (PNG of JPEG): de locatie met de beschermde gebieden eromheen | `pad`, gebied, `straal_m`, `lagen`, `breedte_px`, `met_legende`, `per_groep` | bestandspad, legende per laag met kleur, bbox, schaal |
 | `exporteer_bevraging` | Volledige gebiedsbevraging wegschrijven als CSV of JSON (alle soorten, optioneel alle records) met metadata voor een datarapport | `pad` (.csv/.json), zelfde gebied- en filterparameters, `met_records` | bestandspaden, aantallen, metadata |
 | `lijst` | Inhoud van één gezaghebbende soortenlijst | `code`, `zoek`, `categorie`, `max_resultaten` | `LijstRespons`: items (soort + vermelding) |
@@ -322,7 +322,10 @@ staat in [HANDLEIDING.md](HANDLEIDING.md).
 
 `datarapport_natuur` maakt in één oproep het vaste datarapport (`gbif_mcp/rapport.py`). De
 bevragingen lopen parallel; een rapport met twee kaarten duurt enkele seconden. Zonder `pad`
-belandt de PDF in `~/Documents` (op Windows de map Documenten). Daarnaast biedt de server een
+belandt de PDF in `~/Documents` (op Windows de map Documenten). Met `formaat="docx"` of `"beide"`
+komt er een Word-versie bij (`gbif_mcp/rapport_docx.py`, python-docx) met dezelfde opbouw en
+teksten, in Calibri 10 pt met regelafstand exact 15 pt en 0 pt alinea-afstand; de .docx krijgt
+dezelfde naam als de PDF. PDF blijft de standaard. Daarnaast biedt de server een
 MCP-prompt `datarapport_natuur`: een kant-en-klaar verzoek met adres en stralen als argumenten,
 dat Claude laat samenvatten volgens de vaste conventies (beide stralen expliciet, strikt en
 striktst beschermd, waarschuwingen letterlijk, niets toevoegen).

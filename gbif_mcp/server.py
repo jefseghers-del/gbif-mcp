@@ -790,8 +790,9 @@ async def datarapport_natuur(
     detail_soorten: int = 3,
     bewaar_kaarten: bool = True,
     ook_niet_commercieel: bool = True,
+    formaat: str = "pdf",
 ) -> dict:
-    """Maak in één stap het vaste DATARAPPORT NATUUR als PDF voor een projectlocatie.
+    """Maak in één stap het vaste DATARAPPORT NATUUR als PDF (of Word) voor een projectlocatie.
 
     Gebruik deze tool wanneer de gebruiker om een datarapport, natuurrapport, bronnenscan of
     "rapport zoals het vorige" vraagt. Het sjabloon ligt vast, zodat elk rapport dezelfde opbouw
@@ -806,14 +807,19 @@ async def datarapport_natuur(
     De kaarten zijn leesbaar zonder kleuronderscheid (nummers en arceringen). Met `bwk_kaart` komt
     er een tweede kaart met de habitattypes van de Biologische Waarderingskaart.
 
+    De PDF is de standaard. Met `formaat="docx"` of `"beide"` komt er een Word-versie met dezelfde
+    opbouw en inhoud, in de LDR-huisstijl (Calibri 10 pt, regelafstand exact 15 pt, 0 pt
+    alinea-afstand), om in een nota of advies verder te bewerken.
+
     Na afloop: vat voor de gebruiker kort samen wat het rapport vond (aantal kernsoorten, de
     striktst beschermde soorten, gebieden waarin of nabij de locatie ligt, waarschuwingen letterlijk)
-    en geef het pad. Voeg niets toe dat niet uit de respons komt. Spreek van strikt of striktst
+    en geef het pad (bij Word ook `pad_docx`). Voeg niets toe dat niet uit de respons komt. Spreek van strikt of striktst
     beschermd, nooit van zwaar of zwaarst beschermd.
 
     Args:
         adres: adres in Vlaanderen (bij voorkeur met huisnummer); of `lat`/`lon` in WGS84.
-        pad: doelbestand (.pdf). Zonder pad: Documenten/datarapport-natuur-<locatie>-<datum>.pdf.
+        pad: doelbestand. Zonder pad: Documenten/datarapport-natuur-<locatie>-<datum>.pdf; de
+            Word-versie krijgt dezelfde naam met extensie .docx.
         straal_soorten_m: zoekstraal voor soortwaarnemingen (standaard 500 m).
         straal_gebieden_m: zoekstraal voor gebiedsstatuten en kaarten (standaard 1000 m).
         jaar_van / jaar_tot: periode van de waarnemingen (standaard vanaf 2020).
@@ -824,12 +830,18 @@ async def datarapport_natuur(
         ook_niet_commercieel: ook datasets onder CC BY-NC (alleen niet-commercieel gebruik) meenemen.
             Standaard aan: de uitvoer is bedoeld als intern werkdocument. Zet op False wanneer het
             resultaat gedeeld of gepubliceerd wordt; dan komen alleen datasets onder CC0 en CC BY mee.
+        formaat: "pdf" (standaard), "docx" (Word) of "beide".
     """
     gbif.zet_licentiefilter(ook_niet_commercieel)
     from pathlib import Path
 
     from .gebieden import _naar_l72
     from .rapport import schrijf_pdf
+    from .rapport_docx import schrijf_docx
+
+    formaat = (formaat or "pdf").strip().lower()
+    if formaat not in ("pdf", "docx", "beide"):
+        raise ValueError(f"Onbekend formaat '{formaat}': kies pdf, docx of beide.")
 
     waarschuwingen: list[str] = []
     if adres and (lat is None or lon is None):
@@ -851,6 +863,7 @@ async def datarapport_natuur(
         raise ValueError("Geef een `adres` of `lat` en `lon`.")
 
     doelpad = Path(pad).expanduser() if pad else Path(_standaardpad(label))
+    # Het basispad is altijd .pdf (ook de kaarten worden ernaar genoemd); de Word-versie krijgt .docx.
     if doelpad.suffix.lower() != ".pdf":
         doelpad = doelpad.with_suffix(".pdf")
     doelpad.parent.mkdir(parents=True, exist_ok=True)
@@ -891,7 +904,12 @@ async def datarapport_natuur(
         "kaarten": kaartlijst, "detail": detail, "straal_m": straal_soorten_m, "jaar_van": jaar_van or "begin van de registratie",
         "connector": f"gbif-mcp {__version__}",
     }
-    uit = await asyncio.to_thread(schrijf_pdf, data, str(doelpad))
+    uit: dict = {"pad": None, "paginas": None}
+    if formaat in ("pdf", "beide"):
+        uit = await asyncio.to_thread(schrijf_pdf, data, str(doelpad))
+    pad_docx = None
+    if formaat in ("docx", "beide"):
+        pad_docx = (await asyncio.to_thread(schrijf_docx, data, str(doelpad.with_suffix(".docx"))))["pad"]
     if not bewaar_kaarten:
         for k in kaartlijst:
             Path(k["pad"]).unlink(missing_ok=True)
@@ -900,6 +918,7 @@ async def datarapport_natuur(
     return {
         "pad": uit["pad"],
         "paginas": uit["paginas"],
+        "pad_docx": pad_docx,
         "kaarten": [k["pad"] for k in kaartlijst] if bewaar_kaarten else [],
         "locatie": locatie.get("adres"),
         "straal_soorten_m": straal_soorten_m,

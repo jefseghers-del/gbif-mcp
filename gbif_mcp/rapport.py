@@ -100,9 +100,7 @@ def kaartlegende(regels: list[dict], kolommen: int = 2) -> Table:
     rijen = [["", "", "", ""] for _ in range(per_kolom)]
     for i, r in enumerate(regels):
         kol, rij = divmod(i, per_kolom)
-        naam = r["naam"] if r["status"] == "ok" else r["naam"] + " — niet geraadpleegd"
-        if r.get("aantal_vlakken") and r["laag"] != "_zoek":
-            naam += f" ({r['aantal_vlakken']})"
+        naam = legendenaam(r)
         # Het nummer staat ook in elk vlak op de kaart: zo is de legende leesbaar zonder kleur.
         if r.get("nummer"):
             naam = f"<b>{r['nummer']}.</b> {naam}"
@@ -225,84 +223,93 @@ def bwk_rijen(laag: dict, kaarten: list[dict]) -> list[list[str]]:
     return rijen
 
 
-def bwk_tabel(laag: dict, kaarten: list[dict], straal: int) -> list:
-    """Tabel 5.1: alle BWK-eenheden binnen de straal; kolom 'kaart' = nummer van de legenderegel op de BWK-kaart."""
-    from .bwk import bronvermelding
+# ---------------------------------------------------------------- inhoud, gedeeld door PDF en Word
+# De functies hieronder leveren tekst (met de beperkte markup <b>, <i>, <br/>) en tabelrijen. Zowel
+# schrijf_pdf als rapport_docx.schrijf_docx bouwen daarmee, zodat beide formaten dezelfde inhoud dragen.
 
-    rijen = bwk_rijen(laag, kaarten)
-    uit = [
-        Spacer(1, 8),
-        P("5.1 Biologische Waarderingskaart: alle eenheden binnen de straal", "h2"),
-        P(f"Alle {laag['aantal_binnen_straal']} BWK-eenheden binnen {straal} m, ook die zonder habitat of met waardering "
-          "minder waardevol, gesorteerd op afstand tot de rand van de polygoon. <i>Kaart</i> is het nummer van de "
-          "legenderegel op de BWK-kaart (— = niet getekend: geen habitat, rbb of waardevol element en geen overlap). "
-          "Omschrijvingen en waarderingen volgens de INBO-legende; een code die daar niet in staat, heet "
-          "<i>onbekend in legende</i>.", "klein"),
-        Spacer(1, 3),
-        tabel(["Kaart", "Afstand (m)", "Label", "Karteringseenheden", "Waardering", "Habitat / rbb (aandeel)", "Versie"],
-              rijen, [26, 36, 58, 160, 72, 70, 38], klein=True),
-        Spacer(1, 3),
-        P("Legende: " + bronvermelding() + ".", "klein"),
-    ]
-    if laag["aantal_binnen_straal"] > len(laag["treffers"]):
-        uit.append(P(f"Let op: {len(laag['treffers'])} van {laag['aantal_binnen_straal']} eenheden opgenomen.", "klein"))
-    return uit
+LIJSTNAMEN = {
+    "hrl_iv_vl": "Habitatrichtlijn bijlage IV — soorten die in het Vlaamse Gewest (kunnen) voorkomen, Soortenbesluit bijlage 1 categorie 3",
+    "hrl_ii": "Habitatrichtlijn bijlage II",
+    "vrl": "Vogelrichtlijn bijlagen I, II.1 en II.2",
+    "rodelijst_vl": "Gevalideerde Rode Lijsten van Vlaanderen (INBO)",
+    "rodelijst_broedvogels_2016": "Rode Lijst van de broedvogels in Vlaanderen 2016 (Devos et al. 2016)",
+    "soortenbesluit": "Soortenbesluit, bijlage 1, categorieën 1 tot 3",
+    "bern": "Verdrag van Bern, bijlagen I tot III",
+    "bonn": "Verdrag van Bonn (CMS)",
+    "unielijst": "Unielijst invasieve uitheemse soorten, Verordening (EU) nr. 1143/2014",
+    "invasief_uitgebreid": "Uitgebreide lijst invasieve uitheemse soorten (INBO)",
+    "hrl_v": "Habitatrichtlijn bijlage V",
+    "iucn": "IUCN Red List (wereldwijd)",
+}
+
+KADER = (f"<b>{DISCLAIMER_KORT}</b> De resultaten zijn een geautomatiseerde bronnenscan en vervangen geen "
+         "terreininventarisatie, deskundige beoordeling of juridisch advies. Volledige disclaimer in hoofdstuk 8.")
 
 
-def schrijf_pdf(D: dict, pad: str) -> dict:
-    """Schrijf het datarapport natuur naar `pad`. `D` bevat de sleutels locatie, telling, kern,
-    gebieden, kaarten (lijst, mag leeg), detail, straal_m, jaar_van en connector."""
-    verhaal: list = []
-    P = lambda t, s="tekst": Paragraph(t, S[s])  # noqa: E731
-    loc, tel, kern, geb = D["locatie"], D["telling"], D["kern"], D["gebieden"]
-    periode = f"{D['jaar_van']} tot heden"
-    straal_soorten = D["straal_m"]
-    straal_gebieden = int(geb["straal_m"])
+def stralen(D: dict) -> tuple[float, int]:
+    return D["straal_m"], int(D["gebieden"]["straal_m"])
+
+
+def kaartlijst(D: dict) -> list[dict]:
+    """Eén kaart (sleutel `kaart`) of meerdere thematische kaarten (sleutel `kaarten`)."""
+    return D.get("kaarten") or ([D["kaart"]] if D.get("kaart") else [])
+
+
+def ondertitel(D: dict) -> str:
     # Soorten en gebieden worden met een eigen zoekstraal bevraagd; de ondertitel noemt ze allebei,
     # anders suggereert één afstand ten onrechte dat beide even ver reiken.
+    straal_soorten, straal_gebieden = stralen(D)
+    adres = D["locatie"]["adres"]
     if float(straal_soorten) == float(straal_gebieden):
-        ondertitel = f"Beschermde soorten en gebiedsstatuten binnen {straal_soorten:.0f} m<br/>{loc['adres']}"
-    else:
-        ondertitel = (f"Beschermde soorten binnen {straal_soorten:.0f} m, gebiedsstatuten binnen "
-                      f"{straal_gebieden} m<br/>{loc['adres']}")
-    connector = D.get("connector") or "MCP-connector BE-biodiversiteit"
+        return f"Beschermde soorten en gebiedsstatuten binnen {straal_soorten:.0f} m<br/>{adres}"
+    return (f"Beschermde soorten binnen {straal_soorten:.0f} m, gebiedsstatuten binnen "
+            f"{straal_gebieden} m<br/>{adres}")
 
-    # ---------------------------------------------------------------- blad 1: titel + situering
-    verhaal += [
-        P("Datarapport natuur", "titel"),
-        P(ondertitel, "ondertitel"),
-        kv([
-            ("Projectlocatie", f"{loc['adres']} ({loc['gemeente']})"),
-            ("Coördinaten WGS 84", f"{loc['lat']:.5f} N / {loc['lon']:.5f} O"),
-            ("Coördinaten Lambert 72", f"x {loc['x_lambert72']:.2f} / y {loc['y_lambert72']:.2f}"),
-            ("Geocodering", f"{loc['type']} — {loc['bron']}"),
-            ("Zoekgebied soorten", f"straal {straal_soorten:.0f} m rond de projectlocatie"),
-            ("Zoekgebied gebieden", f"straal {straal_gebieden} m rond de projectlocatie"),
-            ("Periode", periode),
-            ("Bevraging uitgevoerd", tijd(kern["geraadpleegd_op"])),
-            ("Instrument", f"{connector} (GBIF + Vlaams Biodiversiteitsportaal)"),
-            ("Datalicenties", (kern.get("licentiefilter") or "—")
-             + (f" ({_getal(kern['uitgesloten_niet_commercieel'])} records weggelaten)" if kern.get("uitgesloten_niet_commercieel") else "")
-             + (". <b>Bevat gegevens onder CC BY-NC (alleen niet-commercieel gebruik): intern werkdocument, niet "
-                "delen of publiceren zonder de licenties na te gaan.</b>"
-                if (kern.get("licenties") or {}).get("CC BY-NC 4.0") and not kern.get("uitgesloten_niet_commercieel") else "")),
-        ]),
-        Spacer(1, 8),
-        _kader(f"<b>{DISCLAIMER_KORT}</b> De resultaten zijn een geautomatiseerde bronnenscan en vervangen geen "
-               "terreininventarisatie, deskundige beoordeling of juridisch advies. Volledige disclaimer in hoofdstuk 8."),
-        Spacer(1, 8),
-        P("1. Samenvatting", "h1"),
-        P(
-            f"Binnen een straal van {straal_soorten:.0f} m rond de projectlocatie zijn sinds {D['jaar_van']} in totaal "
-            f"<b>{_getal(tel['totaal_waarnemingen'])}</b> waarnemingen van <b>{tel['totaal_soorten']}</b> soorten gemeld in GBIF. "
-            f"Daarvan hebben <b>{tel['totaal_soorten_met_status']}</b> soorten een beschermings-, Rode-Lijst- of exotenstatus. "
-            f"<b>{tel['kern']}</b> soorten hebben een kernstatus voor de natuurtoets: bijlage IV van de Habitatrichtlijn "
-            f"(categorie 3 van het Soortenbesluit), bijlage II van de Habitatrichtlijn, bijlage I van de Vogelrichtlijn, "
-            f"of een Rode-Lijstcategorie RE, CR, EN of VU. Daarnaast zijn <b>{tel['exoten']}</b> soorten met status "
-            f"geregistreerd als uitheems."
-        ),
+
+def voettekst(D: dict) -> str:
+    straal_soorten, straal_gebieden = stralen(D)
+    return (f"Datarapport natuur — {D['locatie']['adres']} — soorten {straal_soorten:.0f} m, "
+            f"gebieden {straal_gebieden} m — bevraagd {datum(D['kern']['geraadpleegd_op'])}")
+
+
+VOETTEKST_2 = "Betaversie — zonder garantie; de gebruiker is zelf verantwoordelijk voor het gebruik."
+
+
+def titelgegevens(D: dict) -> list[tuple[str, str]]:
+    loc, kern = D["locatie"], D["kern"]
+    straal_soorten, straal_gebieden = stralen(D)
+    connector = D.get("connector") or "MCP-connector BE-biodiversiteit"
+    return [
+        ("Projectlocatie", f"{loc['adres']} ({loc['gemeente']})"),
+        ("Coördinaten WGS 84", f"{loc['lat']:.5f} N / {loc['lon']:.5f} O"),
+        ("Coördinaten Lambert 72", f"x {loc['x_lambert72']:.2f} / y {loc['y_lambert72']:.2f}"),
+        ("Geocodering", f"{loc['type']} — {loc['bron']}"),
+        ("Zoekgebied soorten", f"straal {straal_soorten:.0f} m rond de projectlocatie"),
+        ("Zoekgebied gebieden", f"straal {straal_gebieden} m rond de projectlocatie"),
+        ("Periode", f"{D['jaar_van']} tot heden"),
+        ("Bevraging uitgevoerd", tijd(kern["geraadpleegd_op"])),
+        ("Instrument", f"{connector} (GBIF + Vlaams Biodiversiteitsportaal)"),
+        ("Datalicenties", (kern.get("licentiefilter") or "—")
+         + (f" ({_getal(kern['uitgesloten_niet_commercieel'])} records weggelaten)" if kern.get("uitgesloten_niet_commercieel") else "")
+         + (". <b>Bevat gegevens onder CC BY-NC (alleen niet-commercieel gebruik): intern werkdocument, niet "
+            "delen of publiceren zonder de licenties na te gaan.</b>"
+            if (kern.get("licenties") or {}).get("CC BY-NC 4.0") and not kern.get("uitgesloten_niet_commercieel") else "")),
     ]
 
+
+def samenvatting(D: dict) -> list[str]:
+    """Alinea's van hoofdstuk 1."""
+    tel, geb = D["telling"], D["gebieden"]
+    straal_soorten, straal_gebieden = stralen(D)
+    uit = [
+        f"Binnen een straal van {straal_soorten:.0f} m rond de projectlocatie zijn sinds {D['jaar_van']} in totaal "
+        f"<b>{_getal(tel['totaal_waarnemingen'])}</b> waarnemingen van <b>{tel['totaal_soorten']}</b> soorten gemeld in GBIF. "
+        f"Daarvan hebben <b>{tel['totaal_soorten_met_status']}</b> soorten een beschermings-, Rode-Lijst- of exotenstatus. "
+        f"<b>{tel['kern']}</b> soorten hebben een kernstatus voor de natuurtoets: bijlage IV van de Habitatrichtlijn "
+        f"(categorie 3 van het Soortenbesluit), bijlage II van de Habitatrichtlijn, bijlage I van de Vogelrichtlijn, "
+        f"of een Rode-Lijstcategorie RE, CR, EN of VU. Daarnaast zijn <b>{tel['exoten']}</b> soorten met status "
+        f"geregistreerd als uitheems."
+    ]
     samenvatting_geb = geb.get("samenvatting") or {}
     laagnamen = {l["laag"]: l["naam"] for l in geb["lagen"]}
     if straal_gebieden > straal_soorten:
@@ -313,36 +320,290 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
         straal_zin = f"Ook de gebiedsstatuten zijn binnen {straal_gebieden} m bevraagd."
     tekst_geb = {k: v for k, v in samenvatting_geb.items() if isinstance(v, str)}
     if tekst_geb:
-        verhaal.append(P(
-            f"{straal_zin} Daarbinnen zijn treffers gevonden in de volgende gebiedslagen: "
-            + "; ".join(f"{laagnamen.get(k, k)}: {v}" for k, v in tekst_geb.items()) + "."
-        ))
+        uit.append(f"{straal_zin} Daarbinnen zijn treffers gevonden in de volgende gebiedslagen: "
+                   + "; ".join(f"{laagnamen.get(k, k)}: {v}" for k, v in tekst_geb.items()) + ".")
     elif samenvatting_geb.get("bwk"):
-        verhaal.append(P(f"{straal_zin} Daarbinnen is in geen van de beschermingslagen een gebied aangetroffen; "
-                         "de Biologische Waarderingskaart volgt hieronder."))
+        uit.append(f"{straal_zin} Daarbinnen is in geen van de beschermingslagen een gebied aangetroffen; "
+                   "de Biologische Waarderingskaart volgt hieronder.")
     else:
-        verhaal.append(P(
-            f"{straal_zin} Daarbinnen is in geen van de {len(geb['lagen'])} geraadpleegde gebiedslagen een "
-            "beschermd gebied of gebiedsstatuut aangetroffen."
-        ))
-
+        uit.append(f"{straal_zin} Daarbinnen is in geen van de {len(geb['lagen'])} geraadpleegde gebiedslagen een "
+                   "beschermd gebied of gebiedsstatuut aangetroffen.")
     if samenvatting_geb.get("bwk"):
-        verhaal.append(P(bwk_zin(samenvatting_geb["bwk"], straal_gebieden)))
+        uit.append(bwk_zin(samenvatting_geb["bwk"], straal_gebieden))
+    return uit
 
-    # Eén kaart (sleutel `kaart`) of meerdere thematische kaarten (sleutel `kaarten`).
-    kaarten = D.get("kaarten") or ([D["kaart"]] if D.get("kaart") else [])
-    kaart = kaarten[0] if kaarten else None
+
+def situering(kaarten: list[dict]) -> str:
+    return (
+        f"Uitsnede rond de projectlocatie, straal {int(kaarten[0]['straal_m'])} m. De rode stip is de "
+        f"projectlocatie, de rode cirkel de zoekstraal. Ondergrond: {kaarten[0]['achtergrond']}. "
+        f"Coördinaatstelsel Lambert 72; de schaalbalk is metrisch. "
+        + ("De kaarten hebben dezelfde uitsnede en schaal en zijn dus over elkaar te leggen. " if len(kaarten) > 1 else "")
+        + "Elk vlak draagt het nummer van zijn legenderegel, en elke laag heeft een eigen arcering: "
+        "de kaart is dus ook leesbaar zonder kleuronderscheid en in grijswaarden."
+    )
+
+
+def legendenaam(r: dict) -> str:
+    """Tekst van één legenderegel (zonder het nummer)."""
+    naam = r["naam"] if r["status"] == "ok" else r["naam"] + " — niet geraadpleegd"
+    if r.get("aantal_vlakken") and r["laag"] != "_zoek":
+        naam += f" ({r['aantal_vlakken']})"
+    return naam
+
+
+def statussen_rijen(tel: dict) -> list[list[str]]:
+    return [[c, cat, str(n)] for c, cats in tel["per_categorie"].items() for cat, n in sorted(cats.items(), key=lambda kv: -kv[1])]
+
+
+STATUSSEN_NOOT = ("De lijstcodes verwijzen naar de gezaghebbende soortenlijsten van het Vlaams Biodiversiteitsportaal; "
+                  "de volledige benaming en de bron-URL per lijst staan in hoofdstuk 7.")
+
+
+def kernsoorten_inleiding(D: dict) -> str:
+    return (
+        f"Alle soorten met kernstatus, gesorteerd van strikt naar minder strikt beschermd en daarna op aantal waarnemingen. "
+        f"De kolom <i>herkomst</i> geeft de brondatasets waaruit de waarnemingen van die soort komen, met hun "
+        f"aandeel. <i>onz.</i> is de grootste opgegeven coördinaatonzekerheid in meter; <i>zeker</i> is het aantal "
+        f"records waarvan de locatie inclusief die onzekerheid met zekerheid binnen de zoekstraal voor soorten "
+        f"({D['straal_m']:.0f} m) valt. Een onzekerheid van 707 m wijst op een naar een hok vervaagde locatie."
+    )
+
+
+KERNSOORTEN_KOP = ["Soort", "Status", "n", "jaar", "onz.", "zek.", "Herkomst van de waarnemingen"]
+
+
+def kernsoorten_rijen(kern: dict) -> list[list[str]]:
+    rijen = []
+    for s in kern["soorten"]:
+        status = "; ".join(f"{c} {v}" for c, v in s["samenvatting"].items())
+        herkomst = " / ".join(f"{_kort(d)} {d['aantal']}" for d in (s["datasets"] or []))
+        rijen.append([
+            f"<b>{s['nederlandse_naam'] or ''}</b><br/><i>{s['wetenschappelijke_naam']}</i>",
+            status,
+            str(s["aantal_waarnemingen"]),
+            str(s["laatste_jaar"] or ""),
+            f"{s['onzekerheid_max_m']:.0f}" if s["onzekerheid_max_m"] else "",
+            "" if s["zeker_binnen_straal"] is None else str(s["zeker_binnen_straal"]),
+            herkomst,
+        ])
+    return rijen
+
+
+def kernsoorten_noot(kern: dict) -> str:
+    return (f"Aantal kernsoorten: {len(kern['soorten'])}. Volledigheid van de bevraging: "
+            + ("alle gevraagde gegevens zijn opgehaald." if kern["volledig"] else "onvolledig — " + "; ".join(kern["ontbrekend"]) + "."))
+
+
+def gebieden_inleiding(geb: dict) -> str:
+    return (f"Resultaat per geraadpleegde laag binnen {int(geb['straal_m'])} m. Een afstand van 0 m betekent dat de "
+            "projectlocatie binnen het gebied ligt. Lagen met de vermelding <i>niet geraadpleegd</i> gaven een fout: "
+            "daaruit volgt niet dat er geen gebied ligt.")
+
+
+def gebieden_rijen(geb: dict) -> tuple[list[list[str]], dict | None]:
+    """Rijen (laag, resultaat) van hoofdstuk 5 en de BWK-laag voor tabel 5.1 (of None)."""
+    straal_gebieden = int(geb["straal_m"])
+    samenvatting_geb = geb.get("samenvatting") or {}
+    rijen = []
+    bwk_laag = None
+    for laag in geb["lagen"]:
+        if laag["status"] != "ok":
+            res = f"niet geraadpleegd — {laag.get('melding') or ''}"
+        elif not laag.get("aantal_binnen_straal") and not laag["treffers"]:
+            res = f"geen treffer binnen {straal_gebieden} m"
+        elif laag["laag"] == "bwk_habitat":
+            bwk_laag = laag
+            sb = laag.get("samenvatting_bwk") or {}
+            b = sb.get("binnen_straal") or {}
+            zelf = "; ".join(f"<b>ligt in</b> {z['label']} ({z['waardering']}, {z['habitat']})" for z in sb.get("locatie_zelf") or [])
+            res = (zelf + ("; " if zelf else "") + f"{b.get('totaal', laag['aantal_binnen_straal'])} eenheden binnen "
+                   f"{straal_gebieden} m, waarvan {b.get('waardevol', 0)} waardevol en {b.get('zeer_waardevol', 0)} zeer waardevol "
+                   "— zie tabel 5.1")
+        else:
+            res = samenvatting_geb.get(laag["laag"]) or ""
+            res = res.replace("ligt in ", "<b>ligt in</b> ", 1)
+        if laag.get("melding") and laag["status"] == "ok" and laag["laag"] != "bwk_habitat":
+            res += f" <i>({laag['melding']})</i>"
+        rijen.append([laag["naam"], res])
+    return rijen, bwk_laag
+
+
+BWK_KOP = ["Kaart", "Afstand (m)", "Label", "Karteringseenheden", "Waardering", "Habitat / rbb (aandeel)", "Versie"]
+BWK_TITEL = "5.1 Biologische Waarderingskaart: alle eenheden binnen de straal"
+
+
+def bwk_inleiding(laag: dict, straal: int) -> str:
+    return (f"Alle {laag['aantal_binnen_straal']} BWK-eenheden binnen {straal} m, ook die zonder habitat of met waardering "
+            "minder waardevol, gesorteerd op afstand tot de rand van de polygoon. <i>Kaart</i> is het nummer van de "
+            "legenderegel op de BWK-kaart (— = niet getekend: geen habitat, rbb of waardevol element en geen overlap). "
+            "Omschrijvingen en waarderingen volgens de INBO-legende; een code die daar niet in staat, heet "
+            "<i>onbekend in legende</i>.")
+
+
+def bwk_noten(laag: dict) -> list[str]:
+    from .bwk import bronvermelding
+
+    uit = ["Legende: " + bronvermelding() + "."]
+    if laag["aantal_binnen_straal"] > len(laag["treffers"]):
+        uit.append(f"Let op: {len(laag['treffers'])} van {laag['aantal_binnen_straal']} eenheden opgenomen.")
+    return uit
+
+
+DETAIL_TITEL = "6. Onderliggende waarnemingen van de striktst beschermde soorten"
+DETAIL_INLEIDING = (
+    "Per soort de individuele records uit de dataset die er de meeste levert. De verificatiestatus is "
+    "letterlijk overgenomen uit GBIF (veld <i>identificationVerificationStatus</i>); een leeg veld betekent "
+    "dat de bron die informatie niet meelevert, niet dat het record onbetrouwbaar is. De methode is afgeleid uit "
+    "de GBIF-velden samplingProtocol en basisOfRecord (batdetector, uitwerpselen, zicht …); <i>onbekend</i> "
+    "betekent dat de bron het niet vermeldt."
+)
+DETAIL_KOP = ["Datum", "Plaats", "onz. (m)", "Verificatie", "Methode"]
+
+
+def detail_blok(blok: dict) -> tuple[str, str, list[list[str]]]:
+    """Titel, bronnoot en rijen voor één soort in hoofdstuk 6."""
+    s, w = blok["soort"], blok["waarnemingen"]
+    ds_naam = next((d.get("dataset") for d in (s["datasets"] or []) if d["dataset_key"] == blok["dataset_key"]), blok["dataset_key"])
+    rijen = [[
+        x["datum"] or "", x["plaats"] or x["gemeente"] or "", f"{x['onzekerheid_m']:.0f}" if x["onzekerheid_m"] else "",
+        x["verificatiestatus"] or "—", x.get("methode") or x.get("basis") or "onbekend",
+    ] for x in w["waarnemingen"]]
+    titel = f"{s['nederlandse_naam']} ({s['wetenschappelijke_naam']}) — {s['samenvatting'].get('hrl_iv_vl') or list(s['samenvatting'].values())[0]}"
+    noot = (f"Bron: {ds_naam}. Records getoond: {len(rijen)} van {w['totaal']} in deze dataset. "
+            f"Verificatiestatus: {', '.join(f'{k} ({v})' for k, v in w['per_verificatiestatus'].items())}."
+            + (f" Methode: {', '.join(f'{k} ({v})' for k, v in w['per_methode'].items())}." if w.get("per_methode") else ""))
+    return titel, noot, rijen
+
+
+def lijst_rijen(kern: dict) -> list[list[str]]:
+    return [[c, LIJSTNAMEN.get(c, c), tijd(v) if v else "—"] for c, v in kern["lijstversies"].items()]
+
+
+def rodelijst_noot(kern: dict) -> str:
+    return ("Dekking van de Rode Lijsten: " + "; ".join(f"<b>{k}</b> — {v}" for k, v in kern["rodelijst_dekking"].items())
+            + ". Soortengroepen die hier niet in staan, zijn niet op een Rode Lijst beoordeeld.")
+
+
+def datasets_inleiding(D: dict) -> str:
+    return (f"Alle GBIF-datasets die records leveren binnen de zoekstraal voor soorten ({D['straal_m']:.0f} m), met hun "
+            "aandeel en hun licentie. De kolom <i>soorten</i> telt hoeveel van de soorten met status uit die dataset komen. "
+            "Voor datasets onder CC BY is naamsvermelding vereist; neem deze tabel over bij hergebruik van de gegevens.")
+
+
+def dataset_rijen(tel: dict) -> list[list[str]]:
+    return [[(d.get("dataset") or d["dataset_key"]), d.get("licentie") or "—", _getal(d['aantal_records']),
+             str(d.get("aantal_soorten_met_status", "—"))] for d in tel["per_dataset"][:12]]
+
+
+def licentie_noot(kern: dict) -> str:
+    return ("Licentiekeuze: " + (kern.get("licentiefilter") or "—") + ". "
+            + ("Verdeling van alle records in het gebied vóór die keuze: "
+               + "; ".join(f"{k}: {_getal(v)}" for k, v in (kern.get("licenties") or {}).items()) + "."
+               if kern.get("licenties") else ""))
+
+
+def dekking_inleiding(D: dict) -> str:
+    return ("Soortgroepen die als onvolledig gedekt op GBIF gemarkeerd zijn: ze worden vooral via waarnemingen.be gemeld, "
+            "waarvan het grootste deel niet op GBIF staat. Aandeel van de GBIF-records in het zoekgebied voor soorten "
+            f"({D['straal_m']:.0f} m) per brondataset.")
+
+
+DEKKING_KOP = ["Groep", "Records", "Grootste brondatasets (aandeel)", "Waarschuwing"]
+
+
+def dekking_rijen(kern: dict) -> list[list[str]]:
+    return [[f"{g['groep']}<br/><i>{g.get('wetenschappelijke_naam') or ''}</i>",
+             str(g.get("totaal", "—")) if g.get("status") == "ok" else "niet geraadpleegd",
+             "<br/>".join(f"{_kort({'dataset_key': d['dataset_key']})} {d['aandeel']:.0%}" for d in (g.get("per_dataset") or [])[:3]) or "—",
+             g.get("waarschuwing") or "—"] for g in kern["dekking"]]
+
+
+def kaartlagen(D: dict) -> tuple[list[str], list[list[str]]] | None:
+    kaarten = kaartlijst(D)
+    if not kaarten:
+        return None
+    kaart = kaarten[0]
+    return (["Laag", "Kleur op de kaart", f"Vlakken binnen {int(kaart['straal_m'])} m"],
+            [[l["naam"], l["kleur"], str(l["aantal_vlakken"])] for l in kaart.get("legende", [])])
+
+
+def reproduceerbaarheid(kern: dict) -> list[tuple[str, str]]:
+    return [
+        ("Bevraging", tijd(kern["geraadpleegd_op"])),
+        ("Filter", kern["filter"]),
+        ("GBIF-zoekopdracht", f'<font size="6.6">{kern["zoek_url"][:300]}</font>'),
+        ("Occurrence-API", "https://api.gbif.org/v1/occurrence/search"),
+        ("Soortenlijsten", "https://natuurdata.inbo.be (Vlaams Biodiversiteitsportaal, INBO)"),
+        ("Gebiedslagen", "WFS Departement Omgeving (Mercator) en Digitaal Vlaanderen (BWK)"),
+        ("Kaartondergrond", "GRB-basiskaart, WMS Digitaal Vlaanderen (https://geo.api.vlaanderen.be/GRB/wms)"),
+        ("Geocodering", "https://geo.api.vlaanderen.be/geolocation/v4/Location"),
+    ]
+
+
+def beperkingen(kern: dict) -> list[str]:
+    """Opsomming van hoofdstuk 8, inclusief de waarschuwingen uit de bevraging."""
+    uit = [
+        kern["kanttekening"],
+        "De brondataset zegt iets over de herkomst van de determinatie, niet over de validatiestatus van het "
+        "individuele record. Waarnemingen.be stuurt niet alle validatieklassen door naar GBIF, en verscheidene "
+        "datasets vullen het veld identificationVerificationStatus niet in. Uit een datasetnaam mag geen "
+        "betrouwbaarheidsklasse worden afgeleid.",
+        "De koppeling tussen waarneming en soortenlijst gebeurt op de GBIF-taxonsleutel. Ondersoorten en "
+        "synoniemen kunnen daardoor buiten de koppeling vallen.",
+        "De erkende en Vlaamse natuurreservaten (kernzones) en de bosreservaten zitten niet in de geraadpleegde "
+        "WFS-diensten. Verifieer voor het dossier op Geopunt.",
+        "Biologische Waarderingskaart: eenheden en habitatcodes zijn karteringseenheden, geen juridisch statuut. "
+        "Afstanden zijn berekend tot de rand van de gepubliceerde polygoon. De karteringen dateren van verschillende "
+        "jaren (kolom versie en veld HERK); een oude kartering kan achterhaald zijn. Aandelen van habitattypes "
+        "(PHAB) kunnen het resultaat zijn van een automatische verdeling en lokaal sterk afwijken van het terrein.",
+        "Dit rapport is een bronnenscan, geen terreininventarisatie en geen passende beoordeling. Het bevat "
+        "uitsluitend wat de geraadpleegde databanken op het genoemde tijdstip teruggaven.",
+        PRIVACY,
+        DISCLAIMER,
+    ]
+    uit += ["<b>Waarschuwing uit de bevraging:</b> " + w for w in kern.get("waarschuwingen", [])]
+    return uit
+
+
+# ---------------------------------------------------------------- PDF
+
+
+def bwk_tabel(laag: dict, kaarten: list[dict], straal: int) -> list:
+    """Tabel 5.1: alle BWK-eenheden binnen de straal; kolom 'kaart' = nummer van de legenderegel op de BWK-kaart."""
+    return [
+        Spacer(1, 8),
+        P(BWK_TITEL, "h2"),
+        P(bwk_inleiding(laag, straal), "klein"),
+        Spacer(1, 3),
+        tabel(BWK_KOP, bwk_rijen(laag, kaarten), [26, 36, 58, 160, 72, 70, 38], klein=True),
+        Spacer(1, 3),
+    ] + [P(n, "klein") for n in bwk_noten(laag)]
+
+
+def schrijf_pdf(D: dict, pad: str) -> dict:
+    """Schrijf het datarapport natuur naar `pad`. `D` bevat de sleutels locatie, telling, kern,
+    gebieden, kaarten (lijst, mag leeg), detail, straal_m, jaar_van en connector."""
+    verhaal: list = []
+    tel, kern, geb = D["telling"], D["kern"], D["gebieden"]
+    straal_soorten, straal_gebieden = stralen(D)
+
+    # ---------------------------------------------------------------- blad 1: titel + situering
+    verhaal += [
+        P("Datarapport natuur", "titel"),
+        P(ondertitel(D), "ondertitel"),
+        kv(titelgegevens(D)),
+        Spacer(1, 8),
+        _kader(KADER),
+        Spacer(1, 8),
+        P("1. Samenvatting", "h1"),
+    ] + [P(t) for t in samenvatting(D)]
+
+    kaarten = kaartlijst(D)
     if kaarten:
         from PIL import Image as PILImage
 
-        verhaal += [PageBreak(), P("2. Situering", "h1"), P(
-            f"Uitsnede rond de projectlocatie, straal {int(kaarten[0]['straal_m'])} m. De rode stip is de "
-            f"projectlocatie, de rode cirkel de zoekstraal. Ondergrond: {kaarten[0]['achtergrond']}. "
-            f"Coördinaatstelsel Lambert 72; de schaalbalk is metrisch. "
-            + ("De kaarten hebben dezelfde uitsnede en schaal en zijn dus over elkaar te leggen. " if len(kaarten) > 1 else "")
-            + "Elk vlak draagt het nummer van zijn legenderegel, en elke laag heeft een eigen arcering: "
-            "de kaart is dus ook leesbaar zonder kleuronderscheid en in grijswaarden."
-        )]
+        verhaal += [PageBreak(), P("2. Situering", "h1"), P(situering(kaarten))]
         for i, k in enumerate(kaarten, start=1):
             with PILImage.open(k["pad"]) as im:
                 bpx, hpx = im.size
@@ -363,86 +624,28 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
     verhaal += [
         Spacer(1, 4),
         P("3. Statussen in cijfers", "h1"),
-        tabel(
-            ["Lijst", "Categorie", "Aantal soorten"],
-            [[c, cat, str(n)] for c, cats in tel["per_categorie"].items() for cat, n in sorted(cats.items(), key=lambda kv: -kv[1])],
-            [170, 200, 90],
-        ),
+        tabel(["Lijst", "Categorie", "Aantal soorten"], statussen_rijen(tel), [170, 200, 90]),
         Spacer(1, 6),
-        P(
-            "De lijstcodes verwijzen naar de gezaghebbende soortenlijsten van het Vlaams Biodiversiteitsportaal; "
-            "de volledige benaming en de bron-URL per lijst staan in hoofdstuk 7.",
-            "klein",
-        ),
+        P(STATUSSEN_NOOT, "klein"),
         PageBreak(),
     ]
 
     # ---------------------------------------------------------------- blad 2: kernsoorten
-    verhaal += [P("4. Kernsoorten", "h1"), P(
-        f"Alle soorten met kernstatus, gesorteerd van strikt naar minder strikt beschermd en daarna op aantal waarnemingen. "
-        f"De kolom <i>herkomst</i> geeft de brondatasets waaruit de waarnemingen van die soort komen, met hun "
-        f"aandeel. <i>onz.</i> is de grootste opgegeven coördinaatonzekerheid in meter; <i>zeker</i> is het aantal "
-        f"records waarvan de locatie inclusief die onzekerheid met zekerheid binnen de zoekstraal voor soorten "
-        f"({straal_soorten:.0f} m) valt. Een onzekerheid van 707 m wijst op een naar een hok vervaagde locatie."
-    )]
-
-    rijen = []
-    for s in kern["soorten"]:
-        status = "; ".join(f"{c} {v}" for c, v in s["samenvatting"].items())
-        herkomst = " / ".join(f"{_kort(d)} {d['aantal']}" for d in (s["datasets"] or []))
-        rijen.append([
-            f"<b>{s['nederlandse_naam'] or ''}</b><br/><i>{s['wetenschappelijke_naam']}</i>",
-            status,
-            str(s["aantal_waarnemingen"]),
-            str(s["laatste_jaar"] or ""),
-            f"{s['onzekerheid_max_m']:.0f}" if s["onzekerheid_max_m"] else "",
-            "" if s["zeker_binnen_straal"] is None else str(s["zeker_binnen_straal"]),
-            herkomst,
-        ])
-
     verhaal += [
+        P("4. Kernsoorten", "h1"),
+        P(kernsoorten_inleiding(D)),
         Spacer(1, 3),
-        tabel(["Soort", "Status", "n", "jaar", "onz.", "zek.", "Herkomst van de waarnemingen"],
-              rijen, [104, 116, 16, 24, 24, 22, 154]),
+        tabel(KERNSOORTEN_KOP, kernsoorten_rijen(kern), [104, 116, 16, 24, 24, 22, 154]),
         Spacer(1, 6),
-        P(
-            f"Aantal kernsoorten: {len(kern['soorten'])}. Volledigheid van de bevraging: "
-            + ("alle gevraagde gegevens zijn opgehaald." if kern["volledig"] else "onvolledig — " + "; ".join(kern["ontbrekend"]) + "."),
-            "klein",
-        ),
+        P(kernsoorten_noot(kern), "klein"),
         PageBreak(),
     ]
 
     # ---------------------------------------------------------------- blad 3: gebieden + detail
-    verhaal += [P("5. Beschermde gebieden en gebiedsstatuten", "h1"), P(
-        f"Resultaat per geraadpleegde laag binnen {int(geb['straal_m'])} m. Een afstand van 0 m betekent dat de "
-        "projectlocatie binnen het gebied ligt. Lagen met de vermelding <i>niet geraadpleegd</i> gaven een fout: "
-        "daaruit volgt niet dat er geen gebied ligt."
-    )]
-
-    grijs_rijen = []
-    bwk_laag = None
-    for laag in geb["lagen"]:
-        if laag["status"] != "ok":
-            res = f"niet geraadpleegd — {laag.get('melding') or ''}"
-        elif not laag.get("aantal_binnen_straal") and not laag["treffers"]:
-            res = f"geen treffer binnen {straal_gebieden} m"
-        elif laag["laag"] == "bwk_habitat":
-            bwk_laag = laag
-            sb = laag.get("samenvatting_bwk") or {}
-            b = sb.get("binnen_straal") or {}
-            zelf = "; ".join(f"<b>ligt in</b> {z['label']} ({z['waardering']}, {z['habitat']})" for z in sb.get("locatie_zelf") or [])
-            res = (zelf + ("; " if zelf else "") + f"{b.get('totaal', laag['aantal_binnen_straal'])} eenheden binnen "
-                   f"{straal_gebieden} m, waarvan {b.get('waardevol', 0)} waardevol en {b.get('zeer_waardevol', 0)} zeer waardevol "
-                   "— zie tabel 5.1")
-        else:
-            res = samenvatting_geb.get(laag["laag"]) or ""
-            res = res.replace("ligt in ", "<b>ligt in</b> ", 1)
-        if laag.get("melding") and laag["status"] == "ok" and laag["laag"] != "bwk_habitat":
-            res += f" <i>({laag['melding']})</i>"
-        grijs_rijen.append([laag["naam"], res])
-
+    grijs_rijen, bwk_laag = gebieden_rijen(geb)
     verhaal += [
+        P("5. Beschermde gebieden en gebiedsstatuten", "h1"),
+        P(gebieden_inleiding(geb)),
         Spacer(1, 3),
         tabel(["Laag", "Resultaat"], grijs_rijen, [175, 285]),
         Spacer(1, 6),
@@ -450,148 +653,63 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
     ]
     if bwk_laag and bwk_laag["treffers"]:
         verhaal += bwk_tabel(bwk_laag, kaarten, straal_gebieden)
-    verhaal += [
-        Spacer(1, 10),
-        P("6. Onderliggende waarnemingen van de striktst beschermde soorten", "h1"),
-        P(
-            "Per soort de individuele records uit de dataset die er de meeste levert. De verificatiestatus is "
-            "letterlijk overgenomen uit GBIF (veld <i>identificationVerificationStatus</i>); een leeg veld betekent "
-            "dat de bron die informatie niet meelevert, niet dat het record onbetrouwbaar is. De methode is afgeleid uit "
-            "de GBIF-velden samplingProtocol en basisOfRecord (batdetector, uitwerpselen, zicht …); <i>onbekend</i> "
-            "betekent dat de bron het niet vermeldt."
-        ),
-    ]
+    verhaal += [Spacer(1, 10), P(DETAIL_TITEL, "h1"), P(DETAIL_INLEIDING)]
 
     for blok in D["detail"]:
-        s, w = blok["soort"], blok["waarnemingen"]
-        ds_naam = next((d.get("dataset") for d in (s["datasets"] or []) if d["dataset_key"] == blok["dataset_key"]), blok["dataset_key"])
-        rijen = [[
-            x["datum"] or "", x["plaats"] or x["gemeente"] or "", f"{x['onzekerheid_m']:.0f}" if x["onzekerheid_m"] else "",
-            x["verificatiestatus"] or "—", x.get("methode") or x.get("basis") or "onbekend",
-        ] for x in w["waarnemingen"]]
+        titel, noot, rijen = detail_blok(blok)
         verhaal.append(KeepTogether([
             Spacer(1, 6),
-            P(f"{s['nederlandse_naam']} ({s['wetenschappelijke_naam']}) — {s['samenvatting'].get('hrl_iv_vl') or list(s['samenvatting'].values())[0]}", "h2"),
-            P(f"Bron: {ds_naam}. Records getoond: {len(rijen)} van {w['totaal']} in deze dataset. "
-              f"Verificatiestatus: {', '.join(f'{k} ({v})' for k, v in w['per_verificatiestatus'].items())}."
-              + (f" Methode: {', '.join(f'{k} ({v})' for k, v in w['per_methode'].items())}." if w.get("per_methode") else ""), "klein"),
+            P(titel, "h2"),
+            P(noot, "klein"),
             Spacer(1, 2),
-            tabel(["Datum", "Plaats", "onz. (m)", "Verificatie", "Methode"], rijen, [52, 158, 38, 100, 112]),
+            tabel(DETAIL_KOP, rijen, [52, 158, 38, 100, 112]),
         ]))
 
     verhaal.append(PageBreak())
 
     # ---------------------------------------------------------------- blad 4: verantwoording
-    verhaal += [P("7. Verantwoording van de bronnen", "h1"), P("7.1 Geraadpleegde soortenlijsten", "h2")]
-
-    LIJSTNAMEN = {
-        "hrl_iv_vl": "Habitatrichtlijn bijlage IV — soorten die in het Vlaamse Gewest (kunnen) voorkomen, Soortenbesluit bijlage 1 categorie 3",
-        "hrl_ii": "Habitatrichtlijn bijlage II",
-        "vrl": "Vogelrichtlijn bijlagen I, II.1 en II.2",
-        "rodelijst_vl": "Gevalideerde Rode Lijsten van Vlaanderen (INBO)",
-        "rodelijst_broedvogels_2016": "Rode Lijst van de broedvogels in Vlaanderen 2016 (Devos et al. 2016)",
-        "soortenbesluit": "Soortenbesluit, bijlage 1, categorieën 1 tot 3",
-        "bern": "Verdrag van Bern, bijlagen I tot III",
-        "bonn": "Verdrag van Bonn (CMS)",
-        "unielijst": "Unielijst invasieve uitheemse soorten, Verordening (EU) nr. 1143/2014",
-        "invasief_uitgebreid": "Uitgebreide lijst invasieve uitheemse soorten (INBO)",
-        "hrl_v": "Habitatrichtlijn bijlage V",
-        "iucn": "IUCN Red List (wereldwijd)",
-    }
-    rijen = [[c, LIJSTNAMEN.get(c, c), tijd(v) if v else "—"] for c, v in kern["lijstversies"].items()]
     verhaal += [
-        tabel(["Code", "Lijst", "Opgehaald op"], rijen, [80, 270, 110]),
+        P("7. Verantwoording van de bronnen", "h1"),
+        P("7.1 Geraadpleegde soortenlijsten", "h2"),
+        tabel(["Code", "Lijst", "Opgehaald op"], lijst_rijen(kern), [80, 270, 110]),
         Spacer(1, 4),
-        P("Dekking van de Rode Lijsten: " + "; ".join(f"<b>{k}</b> — {v}" for k, v in kern["rodelijst_dekking"].items())
-          + ". Soortengroepen die hier niet in staan, zijn niet op een Rode Lijst beoordeeld.", "klein"),
+        P(rodelijst_noot(kern), "klein"),
         Spacer(1, 10),
         P("7.2 Brondatasets in het zoekgebied", "h2"),
-        P(f"Alle GBIF-datasets die records leveren binnen de zoekstraal voor soorten ({straal_soorten:.0f} m), met hun "
-          "aandeel en hun licentie. De kolom <i>soorten</i> telt hoeveel van de soorten met status uit die dataset komen. "
-          "Voor datasets onder CC BY is naamsvermelding vereist; neem deze tabel over bij hergebruik van de gegevens.", "klein"),
+        P(datasets_inleiding(D), "klein"),
         Spacer(1, 3),
-        tabel(
-            ["Dataset", "Licentie", "Records", "Soorten"],
-            [[(d.get("dataset") or d["dataset_key"]), d.get("licentie") or "—", _getal(d['aantal_records']),
-              str(d.get("aantal_soorten_met_status", "—"))] for d in tel["per_dataset"][:12]],
-            [270, 70, 60, 60],
-        ),
+        tabel(["Dataset", "Licentie", "Records", "Soorten"], dataset_rijen(tel), [270, 70, 60, 60]),
         Spacer(1, 4),
-        P("Licentiekeuze: " + (kern.get("licentiefilter") or "—") + ". "
-          + ("Verdeling van alle records in het gebied vóór die keuze: "
-             + "; ".join(f"{k}: {_getal(v)}" for k, v in (kern.get("licenties") or {}).items()) + "."
-             if kern.get("licenties") else ""), "klein"),
+        P(licentie_noot(kern), "klein"),
     ]
     if kern.get("dekking"):
         verhaal += [
             Spacer(1, 10),
             P("7.2bis Dekking per soortgroep", "h2"),
-            P("Soortgroepen die als onvolledig gedekt op GBIF gemarkeerd zijn: ze worden vooral via waarnemingen.be gemeld, "
-              "waarvan het grootste deel niet op GBIF staat. Aandeel van de GBIF-records in het zoekgebied voor soorten "
-              f"({straal_soorten:.0f} m) per brondataset.", "klein"),
+            P(dekking_inleiding(D), "klein"),
             Spacer(1, 3),
-            tabel(["Groep", "Records", "Grootste brondatasets (aandeel)", "Waarschuwing"],
-                  [[f"{g['groep']}<br/><i>{g.get('wetenschappelijke_naam') or ''}</i>",
-                    str(g.get("totaal", "—")) if g.get("status") == "ok" else "niet geraadpleegd",
-                    "<br/>".join(f"{_kort({'dataset_key': d['dataset_key']})} {d['aandeel']:.0%}" for d in (g.get("per_dataset") or [])[:3]) or "—",
-                    g.get("waarschuwing") or "—"] for g in kern["dekking"]],
-                  [70, 45, 150, 195]),
+            tabel(DEKKING_KOP, dekking_rijen(kern), [70, 45, 150, 195]),
         ]
+    lagen = kaartlagen(D)
     verhaal += [
         Spacer(1, 10),
         P("7.3 Kaartlagen", "h2"),
-        tabel(["Laag", "Kleur op de kaart", f"Vlakken binnen {int(kaart['straal_m']) if kaart else straal_gebieden} m"],
-              [[l["naam"], l["kleur"], str(l["aantal_vlakken"])] for l in (kaart or {}).get("legende", [])],
-              [260, 90, 110]) if kaart else Spacer(1, 0),
+        tabel(lagen[0], lagen[1], [260, 90, 110]) if lagen else Spacer(1, 0),
         Spacer(1, 10),
         P("7.4 Reproduceerbaarheid", "h2"),
-        kv([
-            ("Bevraging", tijd(kern["geraadpleegd_op"])),
-            ("Filter", kern["filter"]),
-            ("GBIF-zoekopdracht", f'<font size="6.6">{kern["zoek_url"][:300]}</font>'),
-            ("Occurrence-API", "https://api.gbif.org/v1/occurrence/search"),
-            ("Soortenlijsten", "https://natuurdata.inbo.be (Vlaams Biodiversiteitsportaal, INBO)"),
-            ("Gebiedslagen", "WFS Departement Omgeving (Mercator) en Digitaal Vlaanderen (BWK)"),
-            ("Kaartondergrond", "GRB-basiskaart, WMS Digitaal Vlaanderen (https://geo.api.vlaanderen.be/GRB/wms)"),
-            ("Geocodering", "https://geo.api.vlaanderen.be/geolocation/v4/Location"),
-        ], 120),
+        kv(reproduceerbaarheid(kern), 120),
         Spacer(1, 12),
         P("8. Beperkingen", "h1"),
     ]
-
-    for zin in [
-        kern["kanttekening"],
-        "De brondataset zegt iets over de herkomst van de determinatie, niet over de validatiestatus van het "
-        "individuele record. Waarnemingen.be stuurt niet alle validatieklassen door naar GBIF, en verscheidene "
-        "datasets vullen het veld identificationVerificationStatus niet in. Uit een datasetnaam mag geen "
-        "betrouwbaarheidsklasse worden afgeleid.",
-        "De koppeling tussen waarneming en soortenlijst gebeurt op de GBIF-taxonsleutel. Ondersoorten en "
-        "synoniemen kunnen daardoor buiten de koppeling vallen.",
-        "De erkende en Vlaamse natuurreservaten (kernzones) en de bosreservaten zitten niet in de geraadpleegde "
-        "WFS-diensten. Verifieer voor het dossier op Geopunt.",
-        "Biologische Waarderingskaart: eenheden en habitatcodes zijn karteringseenheden, geen juridisch statuut. "
-        "Afstanden zijn berekend tot de rand van de gepubliceerde polygoon. De karteringen dateren van verschillende "
-        "jaren (kolom versie en veld HERK); een oude kartering kan achterhaald zijn. Aandelen van habitattypes "
-        "(PHAB) kunnen het resultaat zijn van een automatische verdeling en lokaal sterk afwijken van het terrein.",
-        "Dit rapport is een bronnenscan, geen terreininventarisatie en geen passende beoordeling. Het bevat "
-        "uitsluitend wat de geraadpleegde databanken op het genoemde tijdstip teruggaven.",
-        PRIVACY,
-        DISCLAIMER,
-    ]:
-        verhaal.append(P("• " + zin))
-
-    for w in kern.get("waarschuwingen", []):
-        verhaal.append(P("• <b>Waarschuwing uit de bevraging:</b> " + w))
-
+    verhaal += [P("• " + zin) for zin in beperkingen(kern)]
 
     # ---------------------------------------------------------------- opmaak
     def voet(canvas, doc):
         canvas.saveState()
         canvas.setFont("Helvetica", 7)
         canvas.setFillColor(GRIJS)
-        canvas.drawString(20 * mm, 12 * mm, f"Datarapport natuur — {loc['adres']} — soorten {straal_soorten:.0f} m, "
-                          f"gebieden {straal_gebieden} m — bevraagd {datum(kern['geraadpleegd_op'])}")
-        canvas.drawString(20 * mm, 8.5 * mm, "Betaversie — zonder garantie; de gebruiker is zelf verantwoordelijk voor het gebruik.")
+        canvas.drawString(20 * mm, 12 * mm, voettekst(D))
+        canvas.drawString(20 * mm, 8.5 * mm, VOETTEKST_2)
         canvas.drawRightString(A4[0] - 20 * mm, 12 * mm, f"{doc.page}")
         canvas.setStrokeColor(LIJN)
         canvas.line(20 * mm, 15 * mm, A4[0] - 20 * mm, 15 * mm)

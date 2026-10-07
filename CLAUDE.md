@@ -39,6 +39,14 @@ soortgroep uit `data/dekking.json`. Tests: `tests/conftest.py` mockt `gbif_mcp.d
 Waarnemingen.be als tweede bron (spoor B) is niet geïmplementeerd zolang de gebruiksvoorwaarden van de
 API niet zijn nagegaan; geen scraping.
 
+## Rapport
+
+`gbif_mcp/rapport.py` bevat de inhoud van het datarapport als gedeelde functies (teksten met de markup
+`<b>`, `<i>`, `<br/>` en tabelrijen) plus de PDF-opmaak (reportlab). `gbif_mcp/rapport_docx.py` bouwt uit
+dezelfde functies de Word-versie (python-docx) in de LDR-huisstijl: corpus Calibri 10 pt, regelafstand
+exact 15 pt, 0 pt vóór en na. Nieuwe rapportinhoud komt in een gedeelde functie in `rapport.py`, nooit
+alleen in één formaat. Tool-parameter `formaat`: `pdf` (standaard), `docx` of `beide`.
+
 ## Kaart
 
 `gbif_mcp/kaart.py` tekent de situeringskaart met Pillow: GRB-basiskaart als WMS-ondergrond
@@ -94,7 +102,7 @@ vlag expliciet door. `tests/test_server.py::test_licentiefilter_wordt_echt_gezet
   overlap met shapely; laagregister `LAGEN`/`GROEPEN`), `gebiedsanalyse.py` (gedeelde engine
   voor `soorten_in_gebied`/`telling_in_gebied`: facet éénmalig, lijsten parallel + schijfcache,
   records via `gbif.records_in_gebied` binnen een tijdsbudget — zie de moduledocstring voor de
-  vier stappen), `lijsten.py` (register van lijstcodes/groepen, geen netwerk), `bwk.py` (BWK-legende en -samenvatting, geen netwerk), `schema.py`
+  vier stappen), `lijsten.py` (register van lijstcodes/groepen, geen netwerk), `bwk.py` (BWK-legende en -samenvatting, geen netwerk), `rapport.py` en `rapport_docx.py` (datarapport als PDF en Word), `schema.py`
   (Pydantic-modellen), `http.py` (gedeelde httpx-client + schijfcache), `server.py` (de tien
   MCP-tools).
 - Bij een wijziging aan `gebiedsanalyse.py` of `gebieden.py`: hou de "nooit stilzwijgend
