@@ -212,6 +212,11 @@ class GebiedTreffer(BaseModel):
     afstand_m: int = Field(description="0 bij overlap, anders afstand tot de dichtstbijzijnde grens (Lambert 72, metrisch).")
     oppervlakte_ha: float | None = None
     extra: dict[str, str] = Field(default_factory=dict)
+    id: str | None = Field(default=None, description="Feature-id in de WFS-laag (bv. Bwkhab.217435).")
+    url: str | None = Field(default=None, description="WFS-oproep die precies deze feature teruggeeft (controleerbaar).")
+    bwk: dict | None = Field(default=None, description="Alleen BWK-habitatlaag: bronvelden (BWKLABEL, EENH1-8, EVAL, HAB1-5/PHAB1-5, "
+                             "INFO, TAG, HERK, UIDN) en afgeleide velden (waardering, bevat_habitat, bevat_rbb, karteerjaar_of_versie, "
+                             "omschrijving per eenheid volgens de INBO-legende).")
 
 
 class GebiedenLaag(BaseModel):
@@ -221,9 +226,11 @@ class GebiedenLaag(BaseModel):
     geraadpleegd_op: str
     status: str = Field(description="ok | niet_geraadpleegd (dienst gaf een fout: geen uitspraak mogelijk).")
     aantal_overlappend: int = 0
-    aantal_binnen_straal: int = 0
+    aantal_binnen_straal: int = Field(default=0, description="Alle eenheden/gebieden binnen de straal, ook als ze niet allemaal teruggegeven worden.")
+    aantal_teruggegeven: int = 0
     treffers: list[GebiedTreffer]
     melding: str | None = None
+    samenvatting_bwk: dict | None = Field(default=None, description="Alleen bwk_habitat: samenvatting over alle eenheden binnen de straal.")
 
 
 class GebiedenRespons(BaseModel):
@@ -231,7 +238,8 @@ class GebiedenRespons(BaseModel):
     doel: str
     straal_m: float
     lagen: list[GebiedenLaag]
-    samenvatting: dict[str, str] = Field(default_factory=dict, description="Per laag met treffers: 'in <naam>' of 'dichtstbij <naam> op N m'.")
+    samenvatting: dict[str, str | dict] = Field(default_factory=dict, description="Per laag met treffers een zin met de "
+                                                "overlappende gebieden en de andere binnen de straal; voor de BWK een gestructureerd blok `bwk`.")
     niet_geraadpleegd: list[str] = Field(default_factory=list)
     waarschuwingen: list[str] = Field(default_factory=list)
     kanttekening: str

@@ -18,6 +18,17 @@ records per soort uit over de brondatasets; dat kost geen extra API-verkeer. De 
 nooit een betrouwbaarheidsklasse af uit een datasetnaam of uit `identificationVerificationStatus`:
 dat veld wordt letterlijk doorgegeven, de weging is aan de gebruiker.
 
+## BWK
+
+`gbif_mcp/bwk.py` interpreteert BWK-eenheden met de opzoektabel `gbif_mcp/data/bwk_legende.json`, gebouwd
+door `scripts/bwk_legende_bouwen.py` uit de INBO-legende (folder karteringseenheden v2025, De Saeger et al.
+2025, n2khab). Omschrijvingen nooit uit het geheugen aanvullen; een onbekende code krijgt "onbekend in
+legende". `gebieden_rond` geeft voor élke laag alle eenheden binnen de straal (ook BWK-eenheden met `gh` of
+EVAL `m`); de samenvatting `bwk` telt ze allemaal, ook als `max_treffers_per_laag` de lijst inkort. 'gh'
+nooit als losse code in tekst: "geen habitat". Kaart en rapporttabel delen `bwk.kaartsleutel`, zodat de
+nummers overeenkomen. WFS-features ophalen gebeurt met BBOX en tegelsplitsing, niet met STARTINDEX (zie
+`docs/gebieden-lagen.md`). Testfixture: `tests/fixtures/bwk_bourgoyen_r210.json` (publieke locatie).
+
 ## Kaart
 
 `gbif_mcp/kaart.py` tekent de situeringskaart met Pillow: GRB-basiskaart als WMS-ondergrond
@@ -73,7 +84,7 @@ vlag expliciet door. `tests/test_server.py::test_licentiefilter_wordt_echt_gezet
   overlap met shapely; laagregister `LAGEN`/`GROEPEN`), `gebiedsanalyse.py` (gedeelde engine
   voor `soorten_in_gebied`/`telling_in_gebied`: facet éénmalig, lijsten parallel + schijfcache,
   records via `gbif.records_in_gebied` binnen een tijdsbudget — zie de moduledocstring voor de
-  vier stappen), `lijsten.py` (register van lijstcodes/groepen, geen netwerk), `schema.py`
+  vier stappen), `lijsten.py` (register van lijstcodes/groepen, geen netwerk), `bwk.py` (BWK-legende en -samenvatting, geen netwerk), `schema.py`
   (Pydantic-modellen), `http.py` (gedeelde httpx-client + schijfcache), `server.py` (de tien
   MCP-tools).
 - Bij een wijziging aan `gebiedsanalyse.py` of `gebieden.py`: hou de "nooit stilzwijgend

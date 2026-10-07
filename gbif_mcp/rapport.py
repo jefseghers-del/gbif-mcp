@@ -165,6 +165,90 @@ def _kort(d: dict) -> str:
 
 
 
+def bwk_zin(sb: dict, straal: int) -> str:
+    """Samenvattende zin over de BWK; 'gh' komt nooit als losse code in de tekst ('geen habitat')."""
+    b = sb.get("binnen_straal") or {}
+    zelf = sb.get("locatie_zelf") or []
+    delen = []
+    if zelf:
+        delen.append("De projectlocatie ligt in BWK-eenheid " + "; ".join(
+            f"<b>{z['label']}</b> ({z['waardering']}; habitat: {z['habitat']})" for z in zelf) + ".")
+    delen.append(f"Binnen {straal} m liggen {b.get('totaal', 0)} BWK-eenheden, waarvan <b>{b.get('waardevol', 0)}</b> biologisch "
+                 f"waardevol en <b>{b.get('zeer_waardevol', 0)}</b> biologisch zeer waardevol (zuiver of als complex).")
+    hab = sb.get("habitattypes_binnen_straal") or []
+    rbb = sb.get("rbb_binnen_straal") or []
+    if hab:
+        delen.append("Habitattypes binnen de straal: " + "; ".join(
+            f"{h['code']} {h['naam']} ({h['aandeel_pct']} % van eenheid {h['label']}, op {h['afstand_m']} m"
+            + (f", in {h['aantal_eenheden']} eenheden" if h['aantal_eenheden'] > 1 else "") + ")" for h in hab) + ".")
+    else:
+        delen.append("Binnen de straal staat in de BWK geen Natura 2000-habitattype.")
+    if rbb:
+        delen.append("Regionaal belangrijke biotopen: " + "; ".join(
+            f"{h['code']} {h['naam']} ({h['aandeel_pct']} % van eenheid {h['label']}, op {h['afstand_m']} m)" for h in rbb) + ".")
+    else:
+        delen.append("Binnen de straal staat in de BWK geen regionaal belangrijk biotoop.")
+    if sb.get("dichtste_waardevol"):
+        d = sb["dichtste_waardevol"]
+        delen.append(f"Dichtste (zeer) waardevolle eenheid: {d['label']} ({d['waardering']}), op {d['afstand_m']} m.")
+    return " ".join(delen)
+
+
+def bwk_kaartnummers(kaarten: list[dict]) -> dict[str, int]:
+    """Kaartsleutel (bwk.kaartsleutel) -> nummer van de legenderegel op de BWK-kaart."""
+    nummers: dict[str, int] = {}
+    for k in kaarten:
+        for r in k.get("legende") or []:
+            if str(r.get("laag", "")).startswith("bwk_habitat:") and r.get("nummer"):
+                nummers[r["laag"].split(":", 1)[1]] = r["nummer"]
+    return nummers
+
+
+def bwk_rijen(laag: dict, kaarten: list[dict]) -> list[list[str]]:
+    """Rijen van tabel 5.1, in de volgorde van de treffers (overlap eerst, dan afstand)."""
+    from .bwk import habitat_tekst, wordt_getekend
+
+    nummers = bwk_kaartnummers(kaarten)
+    rijen = []
+    for t in laag["treffers"]:
+        e = t.get("bwk") or {}
+        oms = "<br/>".join(f"<b>{x['code']}</b> {x['omschrijving']}" for x in e.get("eenheden") or []) or "—"
+        rijen.append([
+            str(nummers.get(e.get("kaartsleutel"), "—")) if e and wordt_getekend(e, t["overlapt"]) else "—",
+            "0 (ligt in)" if t["overlapt"] else f"{t['afstand_m']}",
+            e.get("bwklabel") or "—",
+            oms,
+            (e.get("eval") or "—") + (f" — {e['waardering']}" if e.get("waardering") else ""),
+            habitat_tekst(e) if e else "—",
+            e.get("karteerjaar_of_versie") or "—",
+        ])
+    return rijen
+
+
+def bwk_tabel(laag: dict, kaarten: list[dict], straal: int) -> list:
+    """Tabel 5.1: alle BWK-eenheden binnen de straal; kolom 'kaart' = nummer van de legenderegel op de BWK-kaart."""
+    from .bwk import bronvermelding
+
+    rijen = bwk_rijen(laag, kaarten)
+    uit = [
+        Spacer(1, 8),
+        P("5.1 Biologische Waarderingskaart: alle eenheden binnen de straal", "h2"),
+        P(f"Alle {laag['aantal_binnen_straal']} BWK-eenheden binnen {straal} m, ook die zonder habitat of met waardering "
+          "minder waardevol, gesorteerd op afstand tot de rand van de polygoon. <i>Kaart</i> is het nummer van de "
+          "legenderegel op de BWK-kaart (— = niet getekend: geen habitat, rbb of waardevol element en geen overlap). "
+          "Omschrijvingen en waarderingen volgens de INBO-legende; een code die daar niet in staat, heet "
+          "<i>onbekend in legende</i>.", "klein"),
+        Spacer(1, 3),
+        tabel(["Kaart", "Afstand (m)", "Label", "Karteringseenheden", "Waardering", "Habitat / rbb (aandeel)", "Versie"],
+              rijen, [26, 36, 58, 160, 72, 70, 38], klein=True),
+        Spacer(1, 3),
+        P("Legende: " + bronvermelding() + ".", "klein"),
+    ]
+    if laag["aantal_binnen_straal"] > len(laag["treffers"]):
+        uit.append(P(f"Let op: {len(laag['treffers'])} van {laag['aantal_binnen_straal']} eenheden opgenomen.", "klein"))
+    return uit
+
+
 def schrijf_pdf(D: dict, pad: str) -> dict:
     """Schrijf het datarapport natuur naar `pad`. `D` bevat de sleutels locatie, telling, kern,
     gebieden, kaarten (lijst, mag leeg), detail, straal_m, jaar_van en connector."""
@@ -227,16 +311,23 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
         straal_zin = f"Voor de gebiedsstatuten is een kleinere straal van {straal_gebieden} m gehanteerd."
     else:
         straal_zin = f"Ook de gebiedsstatuten zijn binnen {straal_gebieden} m bevraagd."
-    if samenvatting_geb:
+    tekst_geb = {k: v for k, v in samenvatting_geb.items() if isinstance(v, str)}
+    if tekst_geb:
         verhaal.append(P(
             f"{straal_zin} Daarbinnen zijn treffers gevonden in de volgende gebiedslagen: "
-            + "; ".join(f"{laagnamen.get(k, k)}: {v}" for k, v in samenvatting_geb.items()) + "."
+            + "; ".join(f"{laagnamen.get(k, k)}: {v}" for k, v in tekst_geb.items()) + "."
         ))
+    elif samenvatting_geb.get("bwk"):
+        verhaal.append(P(f"{straal_zin} Daarbinnen is in geen van de beschermingslagen een gebied aangetroffen; "
+                         "de Biologische Waarderingskaart volgt hieronder."))
     else:
         verhaal.append(P(
             f"{straal_zin} Daarbinnen is in geen van de {len(geb['lagen'])} geraadpleegde gebiedslagen een "
             "beschermd gebied of gebiedsstatuut aangetroffen."
         ))
+
+    if samenvatting_geb.get("bwk"):
+        verhaal.append(P(bwk_zin(samenvatting_geb["bwk"], straal_gebieden)))
 
     # Eén kaart (sleutel `kaart`) of meerdere thematische kaarten (sleutel `kaarten`).
     kaarten = D.get("kaarten") or ([D["kaart"]] if D.get("kaart") else [])
@@ -330,21 +421,25 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
     )]
 
     grijs_rijen = []
+    bwk_laag = None
     for laag in geb["lagen"]:
         if laag["status"] != "ok":
             res = f"niet geraadpleegd — {laag.get('melding') or ''}"
-        elif not laag["treffers"]:
+        elif not laag.get("aantal_binnen_straal") and not laag["treffers"]:
             res = f"geen treffer binnen {straal_gebieden} m"
+        elif laag["laag"] == "bwk_habitat":
+            bwk_laag = laag
+            sb = laag.get("samenvatting_bwk") or {}
+            b = sb.get("binnen_straal") or {}
+            zelf = "; ".join(f"<b>ligt in</b> {z['label']} ({z['waardering']}, {z['habitat']})" for z in sb.get("locatie_zelf") or [])
+            res = (zelf + ("; " if zelf else "") + f"{b.get('totaal', laag['aantal_binnen_straal'])} eenheden binnen "
+                   f"{straal_gebieden} m, waarvan {b.get('waardevol', 0)} waardevol en {b.get('zeer_waardevol', 0)} zeer waardevol "
+                   "— zie tabel 5.1")
         else:
-            t = laag["treffers"][0]
-            naam = t["naam"] or t["code"] or "(zonder naam)"
-            if laag["laag"].startswith("bwk_habitat") and naam == "gh":
-                naam = "karteringseenheid gh (geen Natura 2000-habitat ter plaatse)"
-            res = (f"<b>ligt binnen</b> {naam}" if t["overlapt"] else f"dichtstbij {naam}, op {t['afstand_m']} m")
-            if t["code"] and t["naam"]:
-                res += f" (code {t['code']})"
-            if laag["aantal_binnen_straal"] > 1:
-                res += f" — {laag['aantal_binnen_straal']} treffers in totaal"
+            res = samenvatting_geb.get(laag["laag"]) or ""
+            res = res.replace("ligt in ", "<b>ligt in</b> ", 1)
+        if laag.get("melding") and laag["status"] == "ok" and laag["laag"] != "bwk_habitat":
+            res += f" <i>({laag['melding']})</i>"
         grijs_rijen.append([laag["naam"], res])
 
     verhaal += [
@@ -352,6 +447,10 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
         tabel(["Laag", "Resultaat"], grijs_rijen, [175, 285]),
         Spacer(1, 6),
         P(geb["kanttekening"], "klein"),
+    ]
+    if bwk_laag and bwk_laag["treffers"]:
+        verhaal += bwk_tabel(bwk_laag, kaarten, straal_gebieden)
+    verhaal += [
         Spacer(1, 10),
         P("6. Onderliggende waarnemingen van de striktst beschermde soorten", "h1"),
         P(
@@ -449,8 +548,11 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
         "De koppeling tussen waarneming en soortenlijst gebeurt op de GBIF-taxonsleutel. Ondersoorten en "
         "synoniemen kunnen daardoor buiten de koppeling vallen.",
         "De erkende en Vlaamse natuurreservaten (kernzones) en de bosreservaten zitten niet in de geraadpleegde "
-        "WFS-diensten. Habitatcodes uit de Biologische Waarderingskaart zijn karteringseenheden, geen juridisch "
-        "statuut. Verifieer voor het dossier op Geopunt.",
+        "WFS-diensten. Verifieer voor het dossier op Geopunt.",
+        "Biologische Waarderingskaart: eenheden en habitatcodes zijn karteringseenheden, geen juridisch statuut. "
+        "Afstanden zijn berekend tot de rand van de gepubliceerde polygoon. De karteringen dateren van verschillende "
+        "jaren (kolom versie en veld HERK); een oude kartering kan achterhaald zijn. Aandelen van habitattypes "
+        "(PHAB) kunnen het resultaat zijn van een automatische verdeling en lokaal sterk afwijken van het terrein.",
         "Dit rapport is een bronnenscan, geen terreininventarisatie en geen passende beoordeling. Het bevat "
         "uitsluitend wat de geraadpleegde databanken op het genoemde tijdstip teruggaven.",
         PRIVACY,

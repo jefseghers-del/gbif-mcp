@@ -73,3 +73,24 @@ def test_telling_per_dataset():
 
     ingevuld = [d for d in met.per_dataset if "aantal_soorten_met_status" in d]
     assert ingevuld and all(d["aantal_soorten_met_status"] <= met.totaal_soorten_met_status for d in ingevuld)
+
+
+def test_bwk_alle_eenheden_binnen_straal_zoals_rechtstreekse_wfs():
+    """`gebieden_rond` (lagen=bwk_habitat, 200 m) telt evenveel eenheden als een rechtstreekse WFS-bevraging.
+    Publieke testlocatie: natuurcentrum Bourgoyen-Ossemeersen, Gent (Lambert 72 x 101896 / y 195419)."""
+    import httpx
+    from shapely.geometry import Point, shape
+
+    from gbif_mcp import gebieden
+
+    x, y, r = 101896, 195419, 200
+    d = httpx.get(gebieden.BWK, params={
+        "SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature", "TYPENAMES": "BWK:Bwkhab", "SRSNAME": "EPSG:31370",
+        "BBOX": f"{x - r},{y - r},{x + r},{y + r},EPSG:31370", "OUTPUTFORMAT": "application/json", "COUNT": 1000,
+    }, timeout=60).json()
+    rechtstreeks = {f["id"] for f in d["features"] if shape(f["geometry"]).distance(Point(x, y)) <= r}
+    laag = asyncio.run(gebieden.bevraag_laag(gebieden.PER_CODE["bwk_habitat"], Point(x, y), r, 10_000))
+    assert laag.status == "ok"
+    assert {t.id for t in laag.treffers} == rechtstreeks
+    assert laag.aantal_binnen_straal == len(rechtstreeks)
+    assert laag.samenvatting_bwk["locatie_zelf"]

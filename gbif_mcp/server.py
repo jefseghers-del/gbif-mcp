@@ -561,6 +561,43 @@ async def telling_in_gebied(
     )
 
 
+def _gebiedsnaam(t) -> str:
+    naam = t.naam or t.code or "(zonder naam)"
+    return f"{naam} ({t.code})" if t.naam and t.code and t.code not in naam else naam
+
+
+def gebieden_samenvatting(lagen, straal_m: float) -> dict[str, str | dict]:
+    """Per laag met treffers één zin met de overlappende gebieden en de andere binnen de straal; voor de BWK
+    het gestructureerde blok `bwk` (over alle eenheden binnen de straal, ook als de lijst is ingekort)."""
+    uit: dict[str, str | dict] = {}
+    for l in lagen:
+        if l.status != "ok":
+            continue
+        if l.laag == "bwk_habitat":
+            if l.samenvatting_bwk and l.aantal_binnen_straal:
+                uit["bwk"] = l.samenvatting_bwk
+            continue
+        if not l.aantal_binnen_straal:
+            continue
+        delen = []
+        overlap = [t for t in l.treffers if t.overlapt]
+        if l.aantal_overlappend:
+            namen = ", ".join(_gebiedsnaam(t) for t in overlap)
+            rest = l.aantal_overlappend - len(overlap)
+            delen.append(f"ligt in {namen}" + (f" (+{rest} andere overlappend)" if rest > 0 else ""))
+        andere = l.aantal_binnen_straal - l.aantal_overlappend
+        if andere:
+            nabij = [t for t in l.treffers if not t.overlapt]
+            tekst = f"{andere} {'andere ' if l.aantal_overlappend else ''}binnen {straal_m:.0f} m"
+            if nabij:
+                tekst += ": " + ", ".join(f"{_gebiedsnaam(t)} op {t.afstand_m} m" for t in nabij)
+                if len(nabij) < andere:
+                    tekst += f" (+{andere - len(nabij)} niet teruggegeven)"
+            delen.append(tekst)
+        uit[l.laag] = "; ".join(delen)
+    return uit
+
+
 @mcp.tool()
 async def gebieden_rond(
     adres: str | None = None,
@@ -576,10 +613,21 @@ async def gebieden_rond(
     Sigma-natuurdoelen, ANB-domeinen, HPG/beschermde graslanden, Duinendecreet, beschermd erfgoed
     (landschap, dorpsgezicht, monument) en BWK (habitat, fauna, 3260).
 
-    Per laag: de gebieden die het punt bevatten of de polygoon overlappen (`overlapt`, afstand 0), anders
-    de dichtstbijzijnde binnen `straal_m` met de afstand in meter (Lambert 72). Een laag met status
-    `niet_geraadpleegd` gaf een fout: dat is geen 'geen gebied'. Bronnen: WFS Departement Omgeving
-    (Mercator) en Digitaal Vlaanderen (BWK); alleen Vlaanderen.
+    Per laag: ALLE gebieden of eenheden binnen `straal_m`, met de afstand in meter tot de rand
+    (Lambert 72; 0 = het punt ligt erin / de polygoon overlapt), overlappende eerst en dan op afstand.
+    `aantal_binnen_straal` telt ze allemaal; `max_treffers_per_laag` kort alleen de teruggegeven lijst
+    in (`aantal_teruggegeven`, met een melding). Een laag met status `niet_geraadpleegd` gaf een fout:
+    dat is geen 'geen gebied'. Bronnen: WFS Departement Omgeving (Mercator) en Digitaal Vlaanderen
+    (BWK); alleen Vlaanderen.
+
+    BWK (`bwk_habitat`): de BWK dekt heel Vlaanderen, dus het punt ligt bijna altijd in een eenheid.
+    Ook eenheden zonder habitat ('geen habitat', code gh) en minder waardevolle (EVAL m) blijven in de
+    lijst. Per eenheid: BWKLABEL, EENH1-8 met omschrijving volgens de INBO-legende (versie 2025;
+    onbekende codes: "onbekend in legende"), EVAL met `waardering`, HAB1-5/PHAB1-5 met `bevat_habitat`
+    en `bevat_rbb` (alle vijf velden, niet alleen HAB1), INFO, TAG/`karteerjaar_of_versie`, HERK, UIDN.
+    `samenvatting.bwk` vat ALLE eenheden binnen de straal samen (ook bij inkorting): de eenheid van de
+    locatie zelf, het aantal waardevolle en zeer waardevolle eenheden, elk habitattype en rbb met
+    aandeel en afstand, en de dichtste waardevolle eenheid. BWK-eenheden zijn geen juridisch statuut.
 
     Args:
         adres: adres of plaatsnaam (Digitaal Vlaanderen); of lat/lon (WGS84); of wkt (POLYGON, WGS84 lon lat).
@@ -601,19 +649,13 @@ async def gebieden_rond(
     doel, omschrijving = gebieden.doelgeometrie(lat=lat, lon=lon, wkt=wkt)
     keuze = gebieden.ontleed_lagen(lagen)
     uit = await gebieden.gebieden_rond(doel, keuze, straal_m, max_treffers_per_laag)
-    samenvatting: dict[str, str] = {}
-    for l in uit:
-        if l.treffers:
-            t = l.treffers[0]
-            naam = t.naam or t.code or "(zonder naam)"
-            samenvatting[l.laag] = f"in {naam}" if t.overlapt else f"dichtstbij {naam} op {t.afstand_m} m"
-            if l.aantal_overlappend > 1:
-                samenvatting[l.laag] += f" (+{l.aantal_overlappend - 1} andere overlappend)"
+    samenvatting = gebieden_samenvatting(uit, straal_m)
     return GebiedenRespons(
         geraadpleegd_op=nu_iso(), doel=omschrijving + omschrijving_extra, straal_m=straal_m, lagen=uit, samenvatting=samenvatting,
         niet_geraadpleegd=[l.laag for l in uit if l.status != "ok"], waarschuwingen=waarschuwingen,
-        kanttekening="Afstanden zijn tot de gebiedsgrens zoals gepubliceerd in de WFS-laag (Lambert 72). Erkende natuurreservaten (kernzones) en "
-        "bosreservaten zitten niet in deze diensten; BWK-habitatcodes zijn karteringseenheden, geen juridisch statuut. Verifieer voor een dossier op Geopunt.",
+        kanttekening="Afstanden zijn tot de rand van de polygoon zoals gepubliceerd in de WFS-laag (Lambert 72). Erkende natuurreservaten (kernzones) en "
+        "bosreservaten zitten niet in deze diensten. BWK-eenheden en -habitatcodes zijn karteringseenheden, geen juridisch statuut; de "
+        "karteringen dateren van verschillende jaren (zie karteerjaar_of_versie en HERK). Verifieer voor een dossier op Geopunt.",
     )
 
 
@@ -805,7 +847,8 @@ async def datarapport_natuur(
         telling_in_gebied(lat=lat, lon=lon, straal_m=straal_soorten_m, jaar_van=jaar_van, jaar_tot=jaar_tot, soorten_per_dataset=True, ook_niet_commercieel=ook_niet_commercieel),
         soorten_in_gebied(lat=lat, lon=lon, straal_m=straal_soorten_m, jaar_van=jaar_van, jaar_tot=jaar_tot, filter="kern",
                           per_dataset_per_soort=True, max_soorten=150, ook_niet_commercieel=ook_niet_commercieel),
-        gebieden_rond(lat=lat, lon=lon, straal_m=straal_gebieden_m),
+        # Alle eenheden binnen de straal: het rapport toont de volledige BWK-tabel.
+        gebieden_rond(lat=lat, lon=lon, straal_m=straal_gebieden_m, max_treffers_per_laag=10_000),
     ]
     if kaarten:
         taken.append(_kaart("natura2000,natuur,beheer", "kaart-gebieden", "Beschermde gebieden en gebiedsstatuten"))

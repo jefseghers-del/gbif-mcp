@@ -30,7 +30,7 @@ Zie **Harde regels** hieronder.
 | `waarnemingen` | GBIF-waarnemingen van één soort in een gebied/periode | `soort`, gebied (zie onder), `jaar_van`, `jaar_tot`, `max_resultaten`, `offset`, `dataset_key` | `WaarnemingenRespons`: totaal, steekproef, verdeling per dataset/jaar, `per_verificatiestatus`, `zoek_url` |
 | `soorten_in_gebied` | Alle soorten waargenomen in een gebied, gekoppeld aan hun status | gebied, `filter`, `alleen_bedreigd`, `per_dataset_per_soort`, `formaat`, `max_soorten`, `offset`, `tijdsbudget_s` | `SoortenInGebiedRespons`: compacte soortenlijst (of `tabel`), legende, dekking, reproduceerbaarheid |
 | `telling_in_gebied` | Alleen aantallen: hoeveel beschermde/Rode-Lijst-/invasieve soorten in een gebied | gebied, `filter`, `soorten_per_dataset` | `TellingRespons`: aantal per lijst/categorie, `per_dataset`, `kern`, `exoten` |
-| `gebieden_rond` | Beschermde gebieden en gebiedsstatuten rond een punt/polygoon | `adres`/`lat`+`lon`/`wkt`, `straal_m`, `lagen` | `GebiedenRespons`: per laag de overlappende of dichtstbijzijnde gebieden |
+| `gebieden_rond` | Beschermde gebieden en gebiedsstatuten rond een punt/polygoon | `adres`/`lat`+`lon`/`wkt`, `straal_m`, `lagen` | `GebiedenRespons`: per laag alle gebieden/eenheden binnen de straal met afstand (overlap eerst); BWK-samenvatting |
 | `datarapport_natuur` | Het vaste rapportsjabloon: telling, kernsoorten, gebieden, kaarten en onderliggende records in één PDF | adres of lat/lon, `pad`, `straal_soorten_m`, `straal_gebieden_m`, `jaar_van`, `kaarten`, `bwk_kaart` | pad, aantal pagina's, kaarten, samenvatting, waarschuwingen |
 | `kaart_gebieden` | Situeringskaart (PNG of JPEG): de locatie met de beschermde gebieden eromheen | `pad`, gebied, `straal_m`, `lagen`, `breedte_px`, `met_legende`, `per_groep` | bestandspad, legende per laag met kleur, bbox, schaal |
 | `exporteer_bevraging` | Volledige gebiedsbevraging wegschrijven als CSV of JSON (alle soorten, optioneel alle records) met metadata voor een datarapport | `pad` (.csv/.json), zelfde gebied- en filterparameters, `met_records` | bestandspaden, aantallen, metadata |
@@ -119,8 +119,12 @@ Komt de kaart verkleind in een document, zet dan `met_legende=False` en maak de 
 document zelf op met het veld `legende`: een ingebakken legende wordt onleesbaar bij verkleining.
 `voorbeeld/maak_rapport.py` doet dat zo.
 
-De Biologische Waarderingskaart krijgt een kleur per karteringseenheid: elk habitattype is een
-eigen legenderegel (`BWK 4030 — droge heide`), zodat de kaart toont wélke habitats er liggen.
+De Biologische Waarderingskaart wordt per groep getekend (`bwk.kaartsleutel`): elk habitattype is
+een eigen legenderegel (`BWK 4030 — …`), daarna de regionaal belangrijke biotopen, en eenheden zonder
+habitat of rbb per waardering (`BWK zonder habitat of rbb — biologisch waardevol`). Het habitattype
+wordt in HAB1 tot HAB5 gezocht, niet alleen in HAB1. Eenheden zonder habitat, rbb of waardevol element
+worden alleen getekend als de locatie erin ligt. Het datarapport zet het nummer van die legenderegel
+per eenheid in de BWK-tabel, zodat kaart en tabel overeenkomen.
 Omdat die laag het hele beeld dekt, is `per_groep=True` daar aan te raden: dan komt er één kaart
 per thema (natura2000, natuur, beheer, erfgoed, bwk) met dezelfde uitsnede en schaal, dus over
 elkaar te leggen. De bestandsnamen krijgen de groep als achtervoegsel.
@@ -139,9 +143,32 @@ een halve A4. Valt de WMS uit, dan wordt de kaart zonder ondergrond getekend en 
 ## `gebieden_rond`: beschermde gebieden en gebiedsstatuten
 
 Bevraagt de WFS-diensten van het Departement Omgeving (Mercator) en Digitaal Vlaanderen (BWK)
-rond een punt of polygoon, intern in Lambert 72 (metrische afstanden). Per laag: de gebieden
-die het punt bevatten of de polygoon overlappen (`overlapt`, afstand 0), anders de
-dichtstbijzijnde binnen `straal_m` (standaard 1000 m).
+rond een punt of polygoon, intern in Lambert 72 (metrische afstanden). Per laag: **alle**
+gebieden of eenheden binnen `straal_m` (standaard 1000 m), met de afstand tot de rand van de
+polygoon (0 = overlap), de overlappende eerst en dan op afstand. Elke treffer draagt een `url`
+(WFS-oproep met `RESOURCEID`) die precies die feature teruggeeft. `aantal_binnen_straal` telt alles;
+`max_treffers_per_laag` kort alleen de teruggegeven lijst in (`aantal_teruggegeven` + melding).
+
+Ophalen gebeurt met een BBOX (straal + 10 m marge). STARTINDEX-paginering is bij deze diensten niet
+betrouwbaar (features dubbel of weggelaten tussen pagina's, vastgesteld 7 oktober 2026); een volle
+pagina (COUNT 1000) wordt daarom in vier tegels gesplitst en opnieuw bevraagd, met ontdubbeling op
+feature-id. Blijft een tegel na vier splitsingen vol, dan staat dat in `melding`.
+
+**BWK.** De BWK dekt heel Vlaanderen: het punt ligt vrijwel altijd in een eenheid. Daarom blijven
+ook eenheden zonder habitat (gh) en minder waardevolle (EVAL m) in de lijst. Per eenheid (`bwk`):
+`BWKLABEL`, `EENH1`–`EENH8` met omschrijving volgens de INBO-legende, `EVAL` met `waardering`,
+`HAB1`–`HAB5` met `PHAB1`–`PHAB5`, `bevat_habitat` en `bevat_rbb` (alle vijf HAB-velden), `INFO`,
+`TAG` en `karteerjaar_of_versie`, `HERK`, `UIDN`, oppervlakte. `samenvatting.bwk` vat alle
+eenheden binnen de straal samen: de eenheid van de locatie zelf, het aantal waardevolle en zeer
+waardevolle, elk habitattype en rbb met aandeel en afstand, en de dichtste waardevolle eenheid.
+'gh' verschijnt nooit als losse code in een samenvatting ("geen habitat").
+
+De legende staat in `gbif_mcp/data/bwk_legende.json`, gebouwd door `scripts/bwk_legende_bouwen.py`
+uit de INBO-folder *Overzicht van de karteringseenheden, versie 2025*, De Saeger et al. (2025)
+(tabellen EVAL en HABLEGENDE) en de namelijst van het INBO-pakket n2khab. De afleidingsregels
+uit de folder (`+`/`-` goed/zwak ontwikkeld, `b` beperkte opslag) worden toegepast; een code die
+niet in de legende staat, krijgt "onbekend in legende" (bv. `mru`, dat in de folder alleen als
+`k(mru)` voorkomt).
 
 Lagen (`gebieden.LAGEN`) en groepen voor `lagen`:
 
@@ -154,16 +181,16 @@ Lagen (`gebieden.LAGEN`) en groepen voor `lagen`:
 | `bwk` | BWK-habitat (incl. Natura 2000-habitattype), BWK-fauna, BWK-habitattype 3260 (waterlopen) |
 
 Leeg `lagen` = alle lagen bevragen. Een laag met `status='niet_geraadpleegd'` gaf een fout bij
-de WFS-dienst: dat is geen "geen gebied", niet stilzwijgend weglaten. `melding` waarschuwt ook
-als de `count`-limiet van een laag is bereikt (verre treffers kunnen dan ontbreken).
+de WFS-dienst: dat is geen "geen gebied", niet stilzwijgend weglaten.
 
 **Beperkingen** (zie ook `docs/gebieden-lagen.md`, peildatum 17 september 2026):
 - Alleen Vlaanderen; de twee gebruikte diensten dekken Wallonië/Brussel niet.
 - Erkende/Vlaamse **natuurreservaten zelf (de kernzones)** en specifieke **bosreservaten**
   zitten niet in deze diensten — enkel de uitbreidingszones (`natuurreservaat_uitbreiding`) en
   de brede laag openbare bossen/natuurdomeinen ANB. Verifieer op Geopunt.
-- BWK-habitatcodes zijn karteringseenheden, geen juridisch statuut. Een niet-overlappende
-  BWK-habitatvlek zonder habitat ("gh") wordt niet als "dichtstbijzijnde" gerapporteerd.
+- BWK-eenheden en -habitatcodes zijn karteringseenheden, geen juridisch statuut. De karteringen
+  dateren van verschillende jaren (`karteerjaar_of_versie`, `HERK`); PHAB-aandelen kunnen uit een
+  automatische verdeling komen.
 
 ## Rode-Lijstdekking en de broedvogel-Rode-Lijst 2016
 

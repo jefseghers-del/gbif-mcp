@@ -17,12 +17,14 @@ import asyncio
 import io
 import math
 from dataclasses import dataclass, field
+from typing import Callable
 
 import httpx
 from PIL import Image, ImageDraw, ImageFont
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
+from . import bwk
 from . import gebieden as gb
 from .http import USER_AGENT, nu_iso
 
@@ -67,11 +69,14 @@ KLEUREN: dict[str, tuple[int, int, int]] = {
 }
 STANDAARD = (120, 120, 120)
 
-# Lagen die per waarde worden opgesplitst (BWK-habitatcodes) doorlopen hetzelfde palet; het nummer
+# Lagen die per waarde worden opgesplitst (BWK) doorlopen hetzelfde palet; het nummer
 # en de arcering houden ze uit elkaar wanneer de kleuren beginnen te herhalen.
 PALET: tuple[tuple[int, int, int], ...] = OKABE_ITO
-# Lagen die per attribuutwaarde in aparte legenderegels worden getekend.
-SPLITS_OP: dict[str, str] = {"bwk_habitat": "HAB1"}
+# Lagen die per groep in aparte legenderegels worden getekend. BWK: de sleutel uit bwk.kaartsleutel
+# (eerste habitattype uit HAB1-5, anders rbb, anders de waardering); de rapporttabel gebruikt dezelfde
+# sleutel, zodat het kaartnummer per eenheid in de tabel staat.
+SPLITS_OP: dict[str, Callable[[dict], str]] = {"bwk_habitat": bwk.kaartsleutel}
+SPLITS_NAAM: dict[str, Callable[[str], str]] = {"bwk_habitat": bwk.kaartsleutel_naam}
 
 
 # Arceringen als tweede, kleurloze onderscheidingsdrager.
@@ -89,45 +94,6 @@ class KaartLaag:
     labels: list[str] = field(default_factory=list)
     status: str = "ok"
     melding: str | None = None
-
-
-def _habitatnaam(code: str) -> str:
-    """Leesbare naam voor een BWK-karteringseenheid; de code blijft altijd zichtbaar."""
-    kort = {
-        "gh": "geen habitattype",
-        "1130": "estuaria",
-        "3150": "voedselrijke plassen",
-        "3260": "submontane waterlopen",
-        "2310": "psammofiele heide",
-        "2330": "open grasland op landduinen",
-        "3130": "oligotrofe plas",
-        "3160": "dystrofe plas",
-        "4010": "vochtige heide",
-        "4030": "droge heide",
-        "5130": "jeneverbesstruweel",
-        "9190": "oud zuur eikenbos",
-        "6230": "heischraal grasland",
-        "6410": "blauwgrasland",
-        "6430": "ruigte en zoom",
-        "6510": "glanshavergrasland",
-        "7140": "overgangsveen",
-        "9120": "zuur eiken-beukenbos",
-        "9130": "eiken-beukenbos",
-        "9160": "essen-eikenbos",
-        "91E0": "alluviaal bos",
-        "91F0": "hardhoutooibos",
-    }
-    def _een(d: str) -> str:
-        # rbb = regionaal belangrijk biotoop; de precieze biotoop staat achter de code zelf en
-        # wordt hier niet geraden.
-        if d.lower().startswith("rbb"):
-            return "regionaal belangrijk biotoop"
-        return kort.get(d, kort.get(d.split("_")[0], kort.get(d.upper(), "")))
-
-    delen = [d.strip() for d in code.split(",") if d.strip()]
-    omschrijvingen = [x for x in (_een(d) for d in delen) if x]
-    omschrijving = ", ".join(dict.fromkeys(omschrijvingen))
-    return f"BWK {code}" + (f" — {omschrijving}" if omschrijving else "")
 
 
 def _font(grootte: int, vet: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -345,7 +311,7 @@ async def teken(
         if fout is not None:
             kl.status, kl.melding = "niet_geraadpleegd", fout
             return [kl]
-        veld = SPLITS_OP.get(l.code)
+        splits = SPLITS_OP.get(l.code)
         per_waarde: dict[str, KaartLaag] = {}
         for f in feats:
             try:
@@ -359,15 +325,15 @@ async def teken(
                 continue
             naam, code, _ = gb.beschrijf(l, f)
             doelkl = kl
-            if veld:
-                waarde = str((f.get("properties") or {}).get(veld) or "").strip() or "(leeg)"
+            if splits:
+                waarde = splits(f.get("properties") or {})
                 doelkl = per_waarde.get(waarde)
                 if doelkl is None:
-                    doelkl = KaartLaag(code=f"{l.code}:{waarde}", naam=f"{_habitatnaam(waarde)}", kleur=(0, 0, 0))
+                    doelkl = KaartLaag(code=f"{l.code}:{waarde}", naam=SPLITS_NAAM[l.code](waarde), kleur=(0, 0, 0))
                     per_waarde[waarde] = doelkl
             doelkl.geometrieen.append(g)
             doelkl.labels.append(naam or code or "")
-        if not veld:
+        if not splits:
             return [kl]
         # Meeste vlakken eerst, zodat de opvallendste habitats bovenaan de legende staan.
         gesorteerd = sorted(per_waarde.values(), key=lambda x: -len(x.geometrieen))

@@ -37,6 +37,21 @@ Basis-URL: `https://geo.api.vlaanderen.be/BWK/wfs`
 | `BWK:Bwkfauna` | BWK 2 - Faunistisch belangrijke gebieden | `SHAPE` (Surface) | `FAUNAID` | OK (DWITHIN getest) |
 | `BWK:Hab3260` | BWK 2 - Habitattype 3260 | `SHAPE` (Curve) | `NAAM`, `BRON` | OK (DWITHIN getest) |
 
+### Update 7 oktober 2026: BBOX in plaats van DWITHIN, geen STARTINDEX-paginering
+
+- `gebieden.haal_features` gebruikt nu `BBOX=x1,y1,x2,y2,EPSG:31370` (straal + 10 m marge) en berekent
+  de afstand zelf met shapely. Reden: `DWITHIN` gaf op `ps:ps_bes_monument` stilzwijgend 0 features
+  terug (HTTP 200, `numberMatched=0`), terwijl er rond het testpunt 7 beschermde monumenten binnen
+  1000 m liggen. Voor de andere geteste lagen gaven BBOX en DWITHIN dezelfde set.
+- `STARTINDEX`-paginering is niet betrouwbaar op `BWK:Bwkhab`: zonder `SORTBY` kwam een feature dubbel
+  en ontbrak er een andere (39 features, BBOX 500 m, pagina's van 7, 10 of 20); met `SORTBY=UIDN`
+  ontbraken er 8. Een oproep met `COUNT=5000` gaf wel alle features (tot 1852 getest, geen plafond
+  gezien). Daarom: één oproep met `COUNT=1000`; is de pagina vol, dan wordt de BBOX in vier tegels
+  gesplitst en herhaald (maximaal vier keer), met ontdubbeling op feature-id.
+- `numberMatched` ontbreekt bij de BWK-dienst (`totalFeatures: "unknown"`); er valt dus niet op te
+  vertrouwen om onvolledigheid te detecteren.
+- Een feature is controleerbaar op te vragen met `RESOURCEID=<feature-id>` (getest op Mercator en BWK).
+
 ## 2. Niet gevonden in deze diensten
 
 - **Erkende/Vlaamse natuurreservaten zelf** (de kernzones, niet de uitbreidingszones): geen aparte laag gevonden in de Mercator-dienst. Enkel `ps:ps_uznres_anb` (uitbreidingszones) is aanwezig. Vermoedelijk zit de reservaatafbakening zelf in een andere dienst (Geopunt/ANB "Natuur en Bos"), niet onderzocht — buiten scope van deze twee opgegeven diensten.

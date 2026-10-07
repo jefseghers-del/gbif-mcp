@@ -92,15 +92,17 @@ def test_bevraag_laag_bij_exceptie_geeft_niet_geraadpleegd(monkeypatch: pytest.M
     assert resultaat.treffers == []
 
 
-def test_bevraag_laag_bwk_regel_niet_overlappende_gh_weggelaten(monkeypatch: pytest.MonkeyPatch):
+def test_bevraag_laag_bwk_niet_overlappende_gh_blijft_in_de_lijst(monkeypatch: pytest.MonkeyPatch):
+    """Regressie: vroeger viel een niet-overlappende eenheid met HAB1 = gh weg, ook als ze waardevol was."""
     laag = PER_CODE["bwk_habitat"]
-    gh_overlappend = _vierkant_feature(101896, 195419, 25, {"HAB1": "gh"})
-    gh_niet_overlappend = _vierkant_feature(102196, 195419, 10, {"HAB1": "gh"})  # binnen straal, niet-overlappend
+    gh_overlappend = _vierkant_feature(101896, 195419, 25, {"HAB1": "gh", "EVAL": "m"})
+    gh_niet_overlappend = _vierkant_feature(102196, 195419, 10, {"HAB1": "gh", "EVAL": "w"})  # binnen straal, niet-overlappend
 
     async def _fake_get_json(url, params, ttl=1800):
         return {"features": [gh_overlappend, gh_niet_overlappend]}
 
     monkeypatch.setattr(gebieden, "get_json", _fake_get_json)
     resultaat = asyncio.run(bevraag_laag(laag, DOEL, straal_m=500.0, max_treffers=10))
-    assert resultaat.aantal_binnen_straal == 1
+    assert resultaat.aantal_binnen_straal == 2
     assert resultaat.treffers[0].overlapt is True
+    assert resultaat.treffers[1].afstand_m == pytest.approx(290, abs=1)
