@@ -2,7 +2,8 @@
 # In licentie gegeven krachtens de EUPL
 # SPDX-License-Identifier: EUPL-1.2
 """Beschermde gebieden rond een punt of polygoon: Natura 2000, VEN/IVON, natuurbeheerplannen, HPG,
-erfgoed, BWK … via de WFS-diensten van het Departement Omgeving (Mercator) en Digitaal Vlaanderen (BWK).
+erfgoed, BWK … via de WFS-diensten van het Departement Omgeving (Mercator), Digitaal Vlaanderen (BWK) en INBO
+(ecotoopkwetsbaarheid).
 
 Werkt intern in Lambert 72 (EPSG:31370) zodat afstanden metrisch zijn. Per laag: ALLE gebieden of
 eenheden binnen de straal, met afstand (0 = overlap), gesorteerd met de overlappende eerst. Dat geldt
@@ -27,12 +28,13 @@ from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 from shapely import wkt as shapely_wkt
 
-from . import bwk
+from . import bwk, ecokwets
 from .http import get_json, nu_iso
 from .schema import GebiedTreffer, GebiedenLaag
 
 MERCATOR = "https://www.mercator.vlaanderen.be/raadpleegdienstenmercatorpubliek/ows"
 BWK = "https://geo.api.vlaanderen.be/BWK/wfs"
+ECOKWETS = ecokwets.DIENST
 
 _naar_l72 = Transformer.from_crs("EPSG:4326", "EPSG:31370", always_xy=True)
 
@@ -47,8 +49,10 @@ class Laag:
     naamvelden: tuple[str, ...]
     codeveld: str | None = None
     extra: tuple[str, ...] = ()
-    groep: str = "natuur"  # natura2000 | natuur | beheer | erfgoed | bwk
+    groep: str = "natuur"  # natura2000 | natuur | beheer | erfgoed | bwk | ecotoop
     max_features: int = 1000  # paginagrootte (COUNT) per oproep; een volle pagina wordt in tegels gesplitst
+    uitvoerformaat: str = "application/json"  # de ArcGIS-WFS van INBO aanvaardt alleen 'GEOJSON'
+    idveld: str | None = None  # eigenschap met het feature-id wanneer de dienst geen 'id' meegeeft (INBO: GmlID)
 
     @property
     def url(self) -> str:
@@ -76,6 +80,10 @@ LAGEN: list[Laag] = [
     Laag("bwk_habitat", "BWK 2 — BWK-zone en Natura 2000-habitat (Bwkhab)", BWK, "BWK:Bwkhab", "SHAPE", ("BWKLABEL",), "UIDN", extra=("EVAL", "HAB1", "PHAB1", "HAB2", "PHAB2"), groep="bwk"),
     Laag("bwk_fauna", "BWK 2 — faunistisch belangrijk gebied", BWK, "BWK:Bwkfauna", "SHAPE", ("FAUNAID",), None, groep="bwk"),
     Laag("bwk_3260", "BWK 2 — habitattype 3260 (waterlopen)", BWK, "BWK:Hab3260", "SHAPE", ("NAAM",), None, extra=("BRON",), groep="bwk"),
+    # De drie INBO-lagen (verdroging, eutrofiering, verzuring) hebben dezelfde polygonen en velden; één laag volstaat.
+    Laag("ecotoopkwetsbaarheid", "Ecotoopkwetsbaarheid (INBO): verdroging, eutrofiëring, verzuring", ECOKWETS,
+         "Ecotoopkwetsbaarheid:verdroging", "Shape", ("label_BWK_eenheden",), "TAG", groep="ecotoop",
+         uitvoerformaat="GEOJSON", idveld="GmlID"),
 ]
 PER_CODE = {l.code: l for l in LAGEN}
 GROEPEN = {
@@ -84,6 +92,7 @@ GROEPEN = {
     "beheer": [l.code for l in LAGEN if l.groep == "beheer"],
     "erfgoed": [l.code for l in LAGEN if l.groep == "erfgoed"],
     "bwk": [l.code for l in LAGEN if l.groep == "bwk"],
+    "ecotoop": [l.code for l in LAGEN if l.groep == "ecotoop"],
 }
 
 
@@ -129,7 +138,7 @@ def feature_url(laag: Laag, fid: str | None) -> str | None:
     if not fid:
         return None
     return (f"{laag.dienst}?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES={laag.typename}"
-            f"&RESOURCEID={fid}&OUTPUTFORMAT=application/json&SRSNAME=EPSG:31370")
+            f"&RESOURCEID={fid}&OUTPUTFORMAT={laag.uitvoerformaat}&SRSNAME=EPSG:31370")
 
 
 def _sleutel(f: dict) -> str:
@@ -151,12 +160,14 @@ async def haal_features(laag: Laag, doel: BaseGeometry, straal_m: float) -> tupl
     async def _tegel(b: tuple[float, float, float, float], diepte: int) -> None:
         params = {
             "SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature", "TYPENAMES": laag.typename,
-            "OUTPUTFORMAT": "application/json", "SRSNAME": "EPSG:31370", "COUNT": laag.max_features,
+            "OUTPUTFORMAT": laag.uitvoerformaat, "SRSNAME": "EPSG:31370", "COUNT": laag.max_features,
             "BBOX": f"{b[0]:.2f},{b[1]:.2f},{b[2]:.2f},{b[3]:.2f},EPSG:31370",
         }
         d = await get_json(laag.dienst, params, ttl=1800)
         feats = d.get("features") or []
         for f in feats:
+            if not f.get("id") and laag.idveld and (f.get("properties") or {}).get(laag.idveld):
+                f["id"] = str(f["properties"][laag.idveld])
             gezien.setdefault(_sleutel(f), f)
         if len(feats) < laag.max_features:
             return
@@ -221,18 +232,20 @@ async def bevraag_laag(laag: Laag, doel: BaseGeometry, straal_m: float, max_tref
             naam=naam, code=code, overlapt=overlapt, afstand_m=round(afstand), oppervlakte_ha=opp, extra=extra,
             id=f.get("id"), url=feature_url(laag, f.get("id")),
             bwk=bwk.eenheid(props) if laag.code == "bwk_habitat" else None,
+            ecotoop=ecokwets.eenheid(props) if laag.code == "ecotoopkwetsbaarheid" else None,
         ))
     treffers.sort(key=lambda t: (not t.overlapt, t.afstand_m))
     meldingen = [onvolledig] if onvolledig else []
     teruggegeven = treffers[:max(0, max_treffers)]
     if len(treffers) > len(teruggegeven):
-        meldingen.append(f"{len(treffers)} {'eenheden' if laag.groep == 'bwk' else 'gebieden'} binnen {straal_m:.0f} m, "
+        meldingen.append(f"{len(treffers)} {'eenheden' if laag.groep in ('bwk', 'ecotoop') else 'gebieden'} binnen {straal_m:.0f} m, "
                          f"{len(teruggegeven)} teruggegeven (max_treffers_per_laag); verhoog die waarde voor de volledige lijst.")
     return GebiedenLaag(
         laag=laag.code, naam=laag.naam, url=laag.url, geraadpleegd_op=geraadpleegd, status="ok",
         aantal_overlappend=sum(1 for t in treffers if t.overlapt), aantal_binnen_straal=len(treffers),
         aantal_teruggegeven=len(teruggegeven), treffers=teruggegeven, melding=" ".join(meldingen) or None,
         samenvatting_bwk=bwk.samenvatting(treffers) if laag.code == "bwk_habitat" else None,
+        samenvatting_ecotoop=ecokwets.samenvatting(treffers) if laag.code == "ecotoopkwetsbaarheid" else None,
     )
 
 

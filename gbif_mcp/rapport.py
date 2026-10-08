@@ -330,6 +330,8 @@ def samenvatting(D: dict) -> list[str]:
                    "beschermd gebied of gebiedsstatuut aangetroffen.")
     if samenvatting_geb.get("bwk"):
         uit.append(bwk_zin(samenvatting_geb["bwk"], straal_gebieden))
+    if samenvatting_geb.get("ecotoopkwetsbaarheid"):
+        uit.append(ecotoop_zin(samenvatting_geb["ecotoopkwetsbaarheid"], straal_gebieden))
     return uit
 
 
@@ -420,10 +422,17 @@ def gebieden_rijen(geb: dict) -> tuple[list[list[str]], dict | None]:
             res = (zelf + ("; " if zelf else "") + f"{b.get('totaal', laag['aantal_binnen_straal'])} eenheden binnen "
                    f"{straal_gebieden} m, waarvan {b.get('waardevol', 0)} waardevol en {b.get('zeer_waardevol', 0)} zeer waardevol "
                    "— zie tabel 5.1")
+        elif laag["laag"] == "ecotoopkwetsbaarheid":
+            sb = laag.get("samenvatting_ecotoop") or {}
+            res = (f"{(sb.get('binnen_straal') or {}).get('totaal', laag['aantal_binnen_straal'])} polygonen binnen "
+                   f"{straal_gebieden} m; hoogste kwetsbaarheid: "
+                   + "; ".join(f"{d} {h['hoogste']['klasse']}" for d, h in ((sb.get("binnen_straal") or {}).get("per_druk") or {}).items()
+                               if h.get("hoogste"))
+                   + " — zie tabel 5.2")
         else:
             res = samenvatting_geb.get(laag["laag"]) or ""
             res = res.replace("ligt in ", "<b>ligt in</b> ", 1)
-        if laag.get("melding") and laag["status"] == "ok" and laag["laag"] != "bwk_habitat":
+        if laag.get("melding") and laag["status"] == "ok" and laag["laag"] not in ("bwk_habitat", "ecotoopkwetsbaarheid"):
             res += f" <i>({laag['melding']})</i>"
         rijen.append([laag["naam"], res])
     return rijen, bwk_laag
@@ -447,6 +456,65 @@ def bwk_noten(laag: dict) -> list[str]:
     uit = ["Legende: " + bronvermelding() + "."]
     if laag["aantal_binnen_straal"] > len(laag["treffers"]):
         uit.append(f"Let op: {len(laag['treffers'])} van {laag['aantal_binnen_straal']} eenheden opgenomen.")
+    return uit
+
+
+def ecotoop_zin(sb: dict, straal: int) -> str:
+    """Samenvattende zin over de ecotoopkwetsbaarheid: klassen letterlijk uit de bron."""
+    from .ecokwets import klassen_tekst
+
+    b = sb.get("binnen_straal") or {}
+    delen = []
+    zelf = sb.get("locatie_zelf") or []
+    if zelf:
+        delen.append("Ecotoopkwetsbaarheid (INBO) op de projectlocatie: " + "; ".join(
+            f"eenheid <b>{z['label']}</b>: {klassen_tekst(z)}" for z in zelf) + ".")
+    hoogste = [(d, h["hoogste"]) for d, h in (b.get("per_druk") or {}).items() if h.get("hoogste")]
+    if hoogste:
+        delen.append(f"Hoogste kwetsbaarheid binnen {straal} m ({b.get('totaal', 0)} polygonen): " + "; ".join(
+            f"{d} <b>{h['klasse']}</b> ({h['label']}, op {h['afstand_m']} m)" for d, h in hoogste)
+            + ". Het gaat om signaalkaarten op schaal Vlaanderen.")
+    return " ".join(delen)
+
+
+def ecotoop_laag(geb: dict) -> dict | None:
+    """De laag ecotoopkwetsbaarheid voor tabel 5.2, als ze geraadpleegd is en treffers heeft."""
+    return next((l for l in geb["lagen"] if l["laag"] == "ecotoopkwetsbaarheid" and l["status"] == "ok" and l["treffers"]), None)
+
+
+ECOTOOP_KOP = ["Afstand (m)", "Label", "Waardering", "Verdroging", "Eutrofiëring", "Verzuring", "Versie"]
+ECOTOOP_TITEL = "5.2 Ecotoopkwetsbaarheid: alle polygonen binnen de straal"
+
+
+def ecotoop_inleiding(laag: dict, straal: int) -> str:
+    return (f"Alle {laag['aantal_binnen_straal']} polygonen van de ecotoopkwetsbaarheidskaarten (INBO) binnen {straal} m, "
+            "gesorteerd op afstand tot de rand van de polygoon. Per milieudruk de klasse en tussen haakjes de waarde, "
+            "beide letterlijk zoals de INBO-dienst ze levert. De kwetsbaarheid volgt uit de gevoeligheid van het ecotoop "
+            "en de biologische waardering van de BWK-eenheid; label en waardering komen uit dezelfde dienst.")
+
+
+def ecotoop_rijen(laag: dict) -> list[list[str]]:
+    from .ecokwets import DRUKKEN
+
+    rijen = []
+    for t in laag["treffers"]:
+        e = t.get("ecotoop") or {}
+        k = e.get("kwetsbaarheid") or {}
+        rijen.append([
+            "0 (ligt in)" if t["overlapt"] else f"{t['afstand_m']}",
+            e.get("bwklabel") or "—",
+            (e.get("eval") or "—") + (f" — {e['waardering']}" if e.get("waardering") else ""),
+        ] + [(f"{k[d]['klasse']} ({k[d]['waarde']:g})" if k.get(d) and k[d].get("waarde") is not None
+              else (k.get(d) or {}).get("klasse", "—")) for d in DRUKKEN] + [e.get("versie_bwk") or "—"])
+    return rijen
+
+
+def ecotoop_noten(laag: dict) -> list[str]:
+    from .ecokwets import GEBRUIKSBEPERKING, bronvermelding
+
+    uit = [bronvermelding() + ".", "Gebruiksbeperking volgens de metadata: " + GEBRUIKSBEPERKING]
+    if laag["aantal_binnen_straal"] > len(laag["treffers"]):
+        uit.append(f"Let op: {len(laag['treffers'])} van {laag['aantal_binnen_straal']} polygonen opgenomen.")
     return uit
 
 
@@ -535,7 +603,8 @@ def reproduceerbaarheid(kern: dict) -> list[tuple[str, str]]:
         ("GBIF-zoekopdracht", f'<font size="6.6">{kern["zoek_url"][:300]}</font>'),
         ("Occurrence-API", "https://api.gbif.org/v1/occurrence/search"),
         ("Soortenlijsten", "https://natuurdata.inbo.be (Vlaams Biodiversiteitsportaal, INBO)"),
-        ("Gebiedslagen", "WFS Departement Omgeving (Mercator) en Digitaal Vlaanderen (BWK)"),
+        ("Gebiedslagen", "WFS Departement Omgeving (Mercator), Digitaal Vlaanderen (BWK) en INBO (ecotoopkwetsbaarheid, "
+                         "https://gisservices.inbo.be/arcgis/services/Ecotoopkwetsbaarheid/MapServer/WFSServer)"),
         ("Kaartondergrond", "GRB-basiskaart, WMS Digitaal Vlaanderen (https://geo.api.vlaanderen.be/GRB/wms)"),
         ("Geocodering", "https://geo.api.vlaanderen.be/geolocation/v4/Location"),
     ]
@@ -557,6 +626,9 @@ def beperkingen(kern: dict) -> list[str]:
         "Afstanden zijn berekend tot de rand van de gepubliceerde polygoon. De karteringen dateren van verschillende "
         "jaren (kolom versie en veld HERK); een oude kartering kan achterhaald zijn. Aandelen van habitattypes "
         "(PHAB) kunnen het resultaat zijn van een automatische verdeling en lokaal sterk afwijken van het terrein.",
+        "Ecotoopkwetsbaarheid: INBO omschrijft de kaarten als signaalkaarten op schaal Vlaanderen; bij gebruik voor lokale "
+        "situaties is een bijkomende controle op lokaal niveau wenselijk. De kwetsbaarheid steunt op de BWK-kartering "
+        "van de polygoon (kolom BWK-versie) en is geen juridisch statuut.",
         "Dit rapport is een bronnenscan, geen terreininventarisatie en geen passende beoordeling. Het bevat "
         "uitsluitend wat de geraadpleegde databanken op het genoemde tijdstip teruggaven.",
         PRIVACY,
@@ -579,6 +651,18 @@ def bwk_tabel(laag: dict, kaarten: list[dict], straal: int) -> list:
         tabel(BWK_KOP, bwk_rijen(laag, kaarten), [26, 36, 58, 160, 72, 70, 38], klein=True),
         Spacer(1, 3),
     ] + [P(n, "klein") for n in bwk_noten(laag)]
+
+
+def ecotoop_tabel(laag: dict, straal: int) -> list:
+    """Tabel 5.2: alle polygonen van de ecotoopkwetsbaarheidskaarten binnen de straal."""
+    return [
+        Spacer(1, 8),
+        P(ECOTOOP_TITEL, "h2"),
+        P(ecotoop_inleiding(laag, straal), "klein"),
+        Spacer(1, 3),
+        tabel(ECOTOOP_KOP, ecotoop_rijen(laag), [40, 70, 92, 72, 72, 72, 42], klein=True),
+        Spacer(1, 3),
+    ] + [P(n, "klein") for n in ecotoop_noten(laag)]
 
 
 def schrijf_pdf(D: dict, pad: str) -> dict:
@@ -653,6 +737,9 @@ def schrijf_pdf(D: dict, pad: str) -> dict:
     ]
     if bwk_laag and bwk_laag["treffers"]:
         verhaal += bwk_tabel(bwk_laag, kaarten, straal_gebieden)
+    eco_laag = ecotoop_laag(geb)
+    if eco_laag:
+        verhaal += ecotoop_tabel(eco_laag, straal_gebieden)
     verhaal += [Spacer(1, 10), P(DETAIL_TITEL, "h1"), P(DETAIL_INLEIDING)]
 
     for blok in D["detail"]:

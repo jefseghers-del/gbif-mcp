@@ -24,7 +24,7 @@ import asyncio
 
 from mcp.server.mcpserver import MCPServer
 
-from . import DISCLAIMER, PRIVACY, __version__, dekking, gbif, gebieden, gebiedsanalyse as ga, inbo, kaart as kaartmodule
+from . import DISCLAIMER, PRIVACY, __version__, dekking, ecokwets, gbif, gebieden, gebiedsanalyse as ga, inbo, kaart as kaartmodule
 from .datasets import compact as datasets_compact
 from .geo import afstand_m, bepaal_gebied, geocodeer
 from .http import nu_iso
@@ -587,7 +587,8 @@ def _gebiedsnaam(t) -> str:
 
 def gebieden_samenvatting(lagen, straal_m: float) -> dict[str, str | dict]:
     """Per laag met treffers één zin met de overlappende gebieden en de andere binnen de straal; voor de BWK
-    het gestructureerde blok `bwk` (over alle eenheden binnen de straal, ook als de lijst is ingekort)."""
+    het gestructureerde blok `bwk` (over alle eenheden binnen de straal, ook als de lijst is ingekort), en
+    evenzo het blok `ecotoopkwetsbaarheid`."""
     uit: dict[str, str | dict] = {}
     for l in lagen:
         if l.status != "ok":
@@ -595,6 +596,10 @@ def gebieden_samenvatting(lagen, straal_m: float) -> dict[str, str | dict]:
         if l.laag == "bwk_habitat":
             if l.samenvatting_bwk and l.aantal_binnen_straal:
                 uit["bwk"] = l.samenvatting_bwk
+            continue
+        if l.laag == "ecotoopkwetsbaarheid":
+            if l.samenvatting_ecotoop and l.aantal_binnen_straal:
+                uit["ecotoopkwetsbaarheid"] = l.samenvatting_ecotoop
             continue
         if not l.aantal_binnen_straal:
             continue
@@ -630,14 +635,14 @@ async def gebieden_rond(
     """Beschermde gebieden en gebiedsstatuten rond een punt of polygoon: Natura 2000 (SBZ-H/SBZ-V, Ramsar),
     VEN/IVON, nationale parken, natuurreservaat-uitbreidingszones, natuurbeheerplannen, natuurrichtplannen,
     Sigma-natuurdoelen, ANB-domeinen, HPG/beschermde graslanden, Duinendecreet, beschermd erfgoed
-    (landschap, dorpsgezicht, monument) en BWK (habitat, fauna, 3260).
+    (landschap, dorpsgezicht, monument), BWK (habitat, fauna, 3260) en de ecotoopkwetsbaarheid (INBO).
 
     Per laag: ALLE gebieden of eenheden binnen `straal_m`, met de afstand in meter tot de rand
     (Lambert 72; 0 = het punt ligt erin / de polygoon overlapt), overlappende eerst en dan op afstand.
     `aantal_binnen_straal` telt ze allemaal; `max_treffers_per_laag` kort alleen de teruggegeven lijst
     in (`aantal_teruggegeven`, met een melding). Een laag met status `niet_geraadpleegd` gaf een fout:
-    dat is geen 'geen gebied'. Bronnen: WFS Departement Omgeving (Mercator) en Digitaal Vlaanderen
-    (BWK); alleen Vlaanderen.
+    dat is geen 'geen gebied'. Bronnen: WFS Departement Omgeving (Mercator), Digitaal Vlaanderen
+    (BWK) en INBO (ecotoopkwetsbaarheid); alleen Vlaanderen.
 
     BWK (`bwk_habitat`): de BWK dekt heel Vlaanderen, dus het punt ligt bijna altijd in een eenheid.
     Ook eenheden zonder habitat ('geen habitat', code gh) en minder waardevolle (EVAL m) blijven in de
@@ -648,11 +653,19 @@ async def gebieden_rond(
     locatie zelf, het aantal waardevolle en zeer waardevolle eenheden, elk habitattype en rbb met
     aandeel en afstand, en de dichtste waardevolle eenheid. BWK-eenheden zijn geen juridisch statuut.
 
+    Ecotoopkwetsbaarheid (`ecotoopkwetsbaarheid`, INBO, versie 2 - 2025): per polygoon binnen de
+    straal de kwetsbaarheid voor verdroging, eutrofiëring en verzuring (waarde en klasse, de klasse
+    letterlijk uit de legendevelden van de dienst), met BWK-label, waardering en eenheden.
+    `samenvatting.ecotoopkwetsbaarheid` geeft per milieudruk de hoogste kwetsbaarheid binnen de
+    straal, het aantal polygonen per klasse, en de locatie zelf. Volgens INBO gaat het om
+    signaalkaarten op schaal Vlaanderen; bij lokaal gebruik is een bijkomende controle wenselijk.
+
     Args:
         adres: adres of plaatsnaam (Digitaal Vlaanderen); of lat/lon (WGS84); of wkt (POLYGON, WGS84 lon lat).
         straal_m: zoekstraal (standaard 1000 m).
-        lagen: kommagescheiden laag- of groepscodes: natura2000, natuur, beheer, erfgoed, bwk, of losse codes
-            (hrl_gebied, vrl_gebied, ven_ivon, natuurbeheerplan, hpg, bwk_habitat, …). Leeg = alle lagen.
+        lagen: kommagescheiden laag- of groepscodes: natura2000, natuur, beheer, erfgoed, bwk, ecotoop, of losse
+            codes (hrl_gebied, vrl_gebied, ven_ivon, natuurbeheerplan, hpg, bwk_habitat, ecotoopkwetsbaarheid, …).
+            Leeg = alle lagen.
         max_treffers_per_laag: hoeveel treffers per laag worden teruggegeven (gesorteerd: overlap eerst, dan afstand).
     """
     waarschuwingen: list[str] = []
@@ -674,7 +687,8 @@ async def gebieden_rond(
         niet_geraadpleegd=[l.laag for l in uit if l.status != "ok"], waarschuwingen=waarschuwingen,
         kanttekening="Afstanden zijn tot de rand van de polygoon zoals gepubliceerd in de WFS-laag (Lambert 72). Erkende natuurreservaten (kernzones) en "
         "bosreservaten zitten niet in deze diensten. BWK-eenheden en -habitatcodes zijn karteringseenheden, geen juridisch statuut; de "
-        "karteringen dateren van verschillende jaren (zie karteerjaar_of_versie en HERK). Verifieer voor een dossier op Geopunt.",
+        "karteringen dateren van verschillende jaren (zie karteerjaar_of_versie en HERK). Ecotoopkwetsbaarheid (INBO): "
+        + ecokwets.GEBRUIKSBEPERKING + " Verifieer voor een dossier op Geopunt.",
     )
 
 

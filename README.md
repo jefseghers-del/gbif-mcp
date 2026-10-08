@@ -170,8 +170,8 @@ een halve A4. Valt de WMS uit, dan wordt de kaart zonder ondergrond getekend en 
 
 ## `gebieden_rond`: beschermde gebieden en gebiedsstatuten
 
-Bevraagt de WFS-diensten van het Departement Omgeving (Mercator) en Digitaal Vlaanderen (BWK)
-rond een punt of polygoon, intern in Lambert 72 (metrische afstanden). Per laag: **alle**
+Bevraagt de WFS-diensten van het Departement Omgeving (Mercator), Digitaal Vlaanderen (BWK) en
+INBO (ecotoopkwetsbaarheid) rond een punt of polygoon, intern in Lambert 72 (metrische afstanden). Per laag: **alle**
 gebieden of eenheden binnen `straal_m` (standaard 1000 m), met de afstand tot de rand van de
 polygoon (0 = overlap), de overlappende eerst en dan op afstand. Elke treffer draagt een `url`
 (WFS-oproep met `RESOURCEID`) die precies die feature teruggeeft. `aantal_binnen_straal` telt alles;
@@ -198,6 +198,18 @@ uit de folder (`+`/`-` goed/zwak ontwikkeld, `b` beperkte opslag) worden toegepa
 niet in de legende staat, krijgt "onbekend in legende" (bv. `mru`, dat in de folder alleen als
 `k(mru)` voorkomt).
 
+**Ecotoopkwetsbaarheid.** De ecotoopkwetsbaarheidskaarten van INBO (versie 2 - 2025, WFS
+`gisservices.inbo.be`, Vlaamse Open Data-licentie v1.2) geven per BWK-polygoon de kwetsbaarheid
+voor verdroging, eutrofiëring en verzuring. De dienst publiceert drie lagen met dezelfde polygonen
+en dezelfde velden; de connector bevraagt er één (`Ecotoopkwetsbaarheid:verdroging`, formaat
+`GEOJSON`, het enige JSON-formaat dat deze ArcGIS-WFS aanvaardt). Per polygoon (`ecotoop`): de
+waarde en de klasse per milieudruk, de klasse letterlijk uit de legendevelden van de dienst
+(`kwets…_legende`; ontbreekt het veld, dan "klasse niet omschreven in bron"), plus BWK-label,
+waardering, eenheden met omschrijving, `HERK` en `TAG`. `samenvatting.ecotoopkwetsbaarheid` geeft
+per milieudruk de hoogste kwetsbaarheid binnen de straal en het aantal polygonen per klasse, en
+de kwetsbaarheid op de locatie zelf. Volgens de metadata zijn het signaalkaarten op schaal
+Vlaanderen; bij lokaal gebruik is een bijkomende controle wenselijk. In het datarapport: tabel 5.2.
+
 Lagen (`gebieden.LAGEN`) en groepen voor `lagen`:
 
 | Groep | Lagen |
@@ -207,18 +219,21 @@ Lagen (`gebieden.LAGEN`) en groepen voor `lagen`:
 | `beheer` | Natuurbeheerplan, natuurrichtplan, Sigma-natuurdoel, ANB-domein |
 | `erfgoed` | Beschermd landschap, dorpsgezicht, monument |
 | `bwk` | BWK-habitat (incl. Natura 2000-habitattype), BWK-fauna, BWK-habitattype 3260 (waterlopen) |
+| `ecotoop` | Ecotoopkwetsbaarheid INBO (verdroging, eutrofiëring, verzuring) |
 
 Leeg `lagen` = alle lagen bevragen. Een laag met `status='niet_geraadpleegd'` gaf een fout bij
 de WFS-dienst: dat is geen "geen gebied", niet stilzwijgend weglaten.
 
 **Beperkingen** (zie ook `docs/gebieden-lagen.md`, peildatum 17 september 2026):
-- Alleen Vlaanderen; de twee gebruikte diensten dekken Wallonië/Brussel niet.
+- Alleen Vlaanderen; de gebruikte diensten dekken Wallonië/Brussel niet.
 - Erkende/Vlaamse **natuurreservaten zelf (de kernzones)** en specifieke **bosreservaten**
   zitten niet in deze diensten — enkel de uitbreidingszones (`natuurreservaat_uitbreiding`) en
   de brede laag openbare bossen/natuurdomeinen ANB. Verifieer op Geopunt.
 - BWK-eenheden en -habitatcodes zijn karteringseenheden, geen juridisch statuut. De karteringen
   dateren van verschillende jaren (`karteerjaar_of_versie`, `HERK`); PHAB-aandelen kunnen uit een
   automatische verdeling komen.
+- Ecotoopkwetsbaarheid: signaalkaarten op schaal Vlaanderen (INBO); de kwetsbaarheid steunt op de
+  BWK-kartering van de polygoon en is geen juridisch statuut.
 
 ## Rode-Lijstdekking en de broedvogel-Rode-Lijst 2016
 
@@ -283,6 +298,9 @@ soorten/lagen het niet lukte. Verhoog `tijdsbudget_s` bij grote gebieden met vee
   Vlaanderen, WFS) — gemeentegeometrie voor `gemeente`. Modellicentie gratis hergebruik.
 - **WFS Departement Omgeving (Mercator)** en **WFS Digitaal Vlaanderen (BWK)** — beschermde
   gebieden en BWK voor `gebieden_rond` (zie hierboven). Modellicentie gratis hergebruik.
+- **WFS INBO Ecotoopkwetsbaarheid** (`gisservices.inbo.be`) — ecotoopkwetsbaarheidskaarten voor
+  Vlaanderen versie 2 - 2025, voor `gebieden_rond` en het datarapport. Vlaamse Open Data-licentie
+  v1.2; bronvermelding "Bron: Instituut voor Natuur- en Bosonderzoek (INBO)".
 
 ### Lijsten op het Vlaams Biodiversiteitsportaal (`lijst`, `soorten_in_gebied`)
 

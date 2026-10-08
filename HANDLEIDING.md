@@ -16,7 +16,7 @@ BE-biodiversiteit geeft Claude toegang tot de officiële Belgische natuurdataban
 waarnemingen van GBIF (waaronder waarnemingen.be, Florabank en de INBO-meetnetten), de Vlaamse
 soortenlijsten van het INBO (Soortenbesluit, Habitat- en Vogelrichtlijn, Rode Lijsten, Unielijst
 invasieve soorten) en de kaartlagen van de Vlaamse overheid (Natura 2000, VEN/IVON,
-natuurbeheerplannen, beschermd erfgoed, Biologische Waarderingskaart).
+natuurbeheerplannen, beschermd erfgoed, Biologische Waarderingskaart, ecotoopkwetsbaarheid).
 
 U stelt uw vraag gewoon in het Nederlands. Claude kiest zelf de juiste opzoeking.
 
@@ -58,7 +58,8 @@ door die beginnen met `[be-biodiversiteit]`.
 De connector heeft een vast rapportsjabloon. Elk rapport heeft dezelfde opbouw: titelblad met
 coördinaten en zoekstralen, samenvatting, situeringskaart en kaart van de Biologische
 Waarderingskaart, statussen in cijfers, de kernsoorten met de herkomst van hun waarnemingen, de
-beschermde gebieden met afstand, de onderliggende waarnemingen van de striktst beschermde soorten,
+beschermde gebieden met afstand, de kwetsbaarheid van de ecotopen voor verdroging, eutrofiëring en
+verzuring (INBO), de onderliggende waarnemingen van de striktst beschermde soorten,
 een verantwoording van de bronnen en de beperkingen.
 
 **De eenvoudigste manier:** typ gewoon

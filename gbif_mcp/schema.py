@@ -229,6 +229,9 @@ class GebiedTreffer(BaseModel):
     bwk: dict | None = Field(default=None, description="Alleen BWK-habitatlaag: bronvelden (BWKLABEL, EENH1-8, EVAL, HAB1-5/PHAB1-5, "
                              "INFO, TAG, HERK, UIDN) en afgeleide velden (waardering, bevat_habitat, bevat_rbb, karteerjaar_of_versie, "
                              "omschrijving per eenheid volgens de INBO-legende).")
+    ecotoop: dict | None = Field(default=None, description="Alleen laag ecotoopkwetsbaarheid: BWK-label, waardering, eenheden met "
+                                 "omschrijving, HERK, TAG en per milieudruk (verdroging, eutrofiëring, verzuring) de waarde en de "
+                                 "klasse letterlijk uit de legendevelden van de INBO-dienst.")
 
 
 class GebiedenLaag(BaseModel):
@@ -243,6 +246,8 @@ class GebiedenLaag(BaseModel):
     treffers: list[GebiedTreffer]
     melding: str | None = None
     samenvatting_bwk: dict | None = Field(default=None, description="Alleen bwk_habitat: samenvatting over alle eenheden binnen de straal.")
+    samenvatting_ecotoop: dict | None = Field(default=None, description="Alleen ecotoopkwetsbaarheid: per milieudruk de hoogste "
+                                              "kwetsbaarheid en het aantal polygonen per klasse binnen de straal, en de locatie zelf.")
 
 
 class GebiedenRespons(BaseModel):

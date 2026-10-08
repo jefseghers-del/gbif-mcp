@@ -66,6 +66,7 @@ KLEUREN: dict[str, tuple[int, int, int]] = {
     "bwk_habitat": OKABE_ITO[2],
     "bwk_fauna": OKABE_ITO[3],
     "bwk_3260": OKABE_ITO[0],
+    "ecotoopkwetsbaarheid": OKABE_ITO[5],
 }
 STANDAARD = (120, 120, 120)
 

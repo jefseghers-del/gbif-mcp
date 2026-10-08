@@ -52,6 +52,30 @@ Basis-URL: `https://geo.api.vlaanderen.be/BWK/wfs`
   vertrouwen om onvolledigheid te detecteren.
 - Een feature is controleerbaar op te vragen met `RESOURCEID=<feature-id>` (getest op Mercator en BWK).
 
+### Update 8 oktober 2026: ecotoopkwetsbaarheid (INBO)
+
+Basis-URL: `https://gisservices.inbo.be/arcgis/services/Ecotoopkwetsbaarheid/MapServer/WFSServer`
+(ArcGIS Server 11.2; metadata https://metadata.vlaanderen.be/srv/api/records/67636b22-0e85-4ff3-9594-f77f3bc65754,
+"Ecotoopkwetsbaarheidskaarten voor Vlaanderen versie 2 - 2025", Vlaamse Open Data-licentie v1.2).
+
+| Name | Inhoud |
+|---|---|
+| `Ecotoopkwetsbaarheid:verdroging` | polygonen met `kwetsverd`, `kwetseutr`, `kwetsverz` en de legendevelden |
+| `Ecotoopkwetsbaarheid:eutrofiering` | idem (zelfde polygonen, zelfde waarden) |
+| `Ecotoopkwetsbaarheid:verzuring` | idem |
+
+- Getest met BBOX 210 m rond het testpunt: de drie lagen gaven dezelfde 23 features (zelfde OBJECTID en
+  dezelfde drie waarden). De connector bevraagt alleen `verdroging`.
+- `OUTPUTFORMAT=application/json` geeft een ExceptionReport (InvalidParameterValue); `GEOJSON` werkt.
+  Native CRS EPSG:31370.
+- Geen `id` op featureniveau; `GmlID` (bv. `verdroging.111620`) werkt als `RESOURCEID`.
+- Velden in de WFS: `TAG`, `waardering` (EVAL-code), `EVAL_omschrijving`, `eenheid_1`–`eenheid_5`,
+  `EENH1_omschrijving`–`EENH5_omschrijving` (leeg = `' '` of `'null'`), `label_BWK_eenheden`, `HERK`,
+  `kwetsverd`/`kwetseutr`/`kwetsverz` (getal) en `kwetsverdr_legende`/`kwetseutr_legende`/`kwetsverz_legende`
+  (klasse). De REST-renderer gebruikt dezelfde klassen: niet kwetsbaar, nauwelijks kwetsbaar, weinig
+  kwetsbaar, kwetsbaar, zeer kwetsbaar.
+- Binnen 200 m van het testpunt: 14 polygonen, evenveel als BWK-eenheden in `BWK:Bwkhab`.
+
 ## 2. Niet gevonden in deze diensten
 
 - **Erkende/Vlaamse natuurreservaten zelf** (de kernzones, niet de uitbreidingszones): geen aparte laag gevonden in de Mercator-dienst. Enkel `ps:ps_uznres_anb` (uitbreidingszones) is aanwezig. Vermoedelijk zit de reservaatafbakening zelf in een andere dienst (Geopunt/ANB "Natuur en Bos"), niet onderzocht — buiten scope van deze twee opgegeven diensten.

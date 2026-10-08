@@ -5,8 +5,8 @@
 gbif-mcp is een MCP-server die Claude toegang geeft tot Belgische biodiversiteitsdata: de
 GBIF occurrence API (waarnemingen), het Vlaams Biodiversiteitsportaal (INBO) met de
 gezaghebbende lijsten (Soortenbesluit, Habitat- en Vogelrichtlijnbijlagen, Rode Lijsten,
-Unielijst invasieve soorten …), en de WFS-diensten van het Departement Omgeving (Mercator) en
-Digitaal Vlaanderen (BWK) voor beschermde gebieden. Zie `README.md` voor de tien tools, de
+Unielijst invasieve soorten …), en de WFS-diensten van het Departement Omgeving (Mercator),
+Digitaal Vlaanderen (BWK) en INBO (ecotoopkwetsbaarheid) voor beschermde gebieden en kwetsbaarheid. Zie `README.md` voor de tien tools, de
 gebiedsparameters en het volledige overzicht van lijst- en laagcodes (ook opvraagbaar via de
 tool `bronnen`).
 
@@ -28,6 +28,16 @@ EVAL `m`); de samenvatting `bwk` telt ze allemaal, ook als `max_treffers_per_laa
 nooit als losse code in tekst: "geen habitat". Kaart en rapporttabel delen `bwk.kaartsleutel`, zodat de
 nummers overeenkomen. WFS-features ophalen gebeurt met BBOX en tegelsplitsing, niet met STARTINDEX (zie
 `docs/gebieden-lagen.md`). Testfixture: `tests/fixtures/bwk_bourgoyen_r210.json` (publieke locatie).
+
+## Ecotoopkwetsbaarheid
+
+`gbif_mcp/ecokwets.py` interpreteert de INBO-WFS `Ecotoopkwetsbaarheid` (versie 2 - 2025, laag
+`ecotoopkwetsbaarheid`, groep `ecotoop`, standaard in elke bevraging en elk rapport). De drie WFS-lagen
+hebben dezelfde polygonen en velden; één laag volstaat. De dienst aanvaardt alleen `OUTPUTFORMAT=GEOJSON`
+en geeft geen feature-`id`: het id komt uit `GmlID` (`Laag.uitvoerformaat`, `Laag.idveld`). De klasse komt
+letterlijk uit de legendevelden (`kwets…_legende`), nooit afgeleid uit het getal; ontbreekt ze, dan
+"klasse niet omschreven in bron". De gebruiksbeperking (signaalkaarten) is een letterlijk citaat uit het
+metadatarecord. Testfixture: `tests/fixtures/ecokwets_bourgoyen_r210.json` (publieke locatie).
 
 ## Methode en dekking
 
@@ -102,7 +112,7 @@ vlag expliciet door. `tests/test_server.py::test_licentiefilter_wordt_echt_gezet
   overlap met shapely; laagregister `LAGEN`/`GROEPEN`), `gebiedsanalyse.py` (gedeelde engine
   voor `soorten_in_gebied`/`telling_in_gebied`: facet éénmalig, lijsten parallel + schijfcache,
   records via `gbif.records_in_gebied` binnen een tijdsbudget — zie de moduledocstring voor de
-  vier stappen), `lijsten.py` (register van lijstcodes/groepen, geen netwerk), `bwk.py` (BWK-legende en -samenvatting, geen netwerk), `rapport.py` en `rapport_docx.py` (datarapport als PDF en Word), `schema.py`
+  vier stappen), `lijsten.py` (register van lijstcodes/groepen, geen netwerk), `bwk.py` (BWK-legende en -samenvatting, geen netwerk), `ecokwets.py` (ecotoopkwetsbaarheid, geen netwerk), `rapport.py` en `rapport_docx.py` (datarapport als PDF en Word), `schema.py`
   (Pydantic-modellen), `http.py` (gedeelde httpx-client + schijfcache), `server.py` (de tien
   MCP-tools).
 - Bij een wijziging aan `gebiedsanalyse.py` of `gebieden.py`: hou de "nooit stilzwijgend

@@ -357,6 +357,13 @@ def schrijf_docx(D: dict, pad: str) -> dict:
         _tabel(doc, R.BWK_KOP, R.bwk_rijen(bwk_laag, kaarten), [30, 38, 56, 156, 72, 70, 38])
         for n in R.bwk_noten(bwk_laag):
             _p(doc, n, "Noot")
+    eco_laag = R.ecotoop_laag(geb)
+    if eco_laag:
+        _p(doc, R.ECOTOOP_TITEL, "Heading 2")
+        _p(doc, R.ecotoop_inleiding(eco_laag, straal_gebieden), "Noot")
+        _tabel(doc, R.ECOTOOP_KOP, R.ecotoop_rijen(eco_laag), [40, 70, 92, 72, 72, 72, 42])
+        for n in R.ecotoop_noten(eco_laag):
+            _p(doc, n, "Noot")
 
     # ---------------------------------------------------------------- 6. onderliggende waarnemingen
     _p(doc, R.DETAIL_TITEL, "Heading 1")
